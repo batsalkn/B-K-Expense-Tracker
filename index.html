@@ -128,6 +128,12 @@
   .ok { font-size: 12px; color: var(--positive); margin-top: 8px; }
   .foot-note { text-align: center; font-size: 11px; color: var(--text-footer); margin-top: 20px; line-height: 1.6; }
   .totals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--accent);
+    background: rgba(var(--accent-rgb),0.1); border: 1px solid var(--accent); border-radius: 999px;
+    padding: 3px 9px; cursor: pointer;
+  }
   .tot-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 10px; }
   .tot-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
   .tot-head span { font-size: 10px; letter-spacing: 0.06em; color: var(--text-secondary); text-transform: uppercase; }
@@ -220,9 +226,9 @@
           <input class="input" id="sheetIdInput" placeholder="from the sheet's URL" />
         </div>
       </div>
-      <label class="label">Tab name <span class="hint">(the sheet tab at the bottom, default "Sheet1")</span></label>
+      <label class="label">Tab name <span class="hint">(the sheet tab at the bottom, default "BKExpense Tracker")</span></label>
       <div style="margin-bottom:10px;">
-        <input class="input" id="tabNameInput" placeholder="Sheet1" />
+        <input class="input" id="tabNameInput" placeholder="BKExpense Tracker" />
       </div>
       <div style="display:flex; gap:8px;">
         <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
@@ -285,7 +291,7 @@ const CATEGORIES = [
   { id: "Others", icon: "more" },
 ];
 const SHEET_RANGE_SUFFIX = "A:F"; // Date, Category, Remarks, Method, Amount, RowId(timestamp)
-function tabName() { return localStorage.getItem("el_tab_name") || "Sheet1"; }
+function tabName() { return localStorage.getItem("el_tab_name") || "BKExpense Tracker"; }
 function sheetRange(suffix) { return tabName() + "!" + suffix; }
 const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
@@ -337,7 +343,9 @@ let state = {
   compareB: monthKey(todayStr()),
   accessToken: null,
   sheetGid: null,
-  summaryFilter: null, // { type: "method"|"category", value: string } | null
+  summaryFilter: null, // legacy, unused
+  filterMethods: new Set(),
+  filterCategories: new Set(),
 };
 
 /* ---------- Google auth + Sheets API ---------- */
@@ -405,7 +413,7 @@ async function attemptSilentConnect() {
 document.getElementById("saveSettingsBtn").addEventListener("click", () => {
   const clientId = document.getElementById("clientIdInput").value.trim();
   const sheetId = document.getElementById("sheetIdInput").value.trim();
-  const tabNameVal = document.getElementById("tabNameInput").value.trim() || "Sheet1";
+  const tabNameVal = document.getElementById("tabNameInput").value.trim() || "BKExpense Tracker";
   localStorage.setItem("el_client_id", clientId);
   localStorage.setItem("el_sheet_id", sheetId);
   localStorage.setItem("el_tab_name", tabNameVal);
@@ -895,11 +903,15 @@ function renderSummary() {
   const sortedList = [...stats.list].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
   const catTotals = Object.keys(stats.catMap).map(id => ({ id, icon: categoryInfo(id).icon, total: stats.catMap[id] })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
 
-  const filter = state.summaryFilter;
-  const filteredList = filter
-    ? sortedList.filter(e => filter.type === "method" ? e.method === filter.value : e.category === filter.value)
-    : sortedList;
-  const filterLabel = filter ? (filter.type === "method" ? methodInfo(filter.value).label : filter.value) : "";
+  const fm = state.filterMethods, fc = state.filterCategories;
+  const hasFilter = fm.size > 0 || fc.size > 0;
+  const filteredList = sortedList.filter(e =>
+    (fm.size === 0 || fm.has(e.method)) && (fc.size === 0 || fc.has(e.category))
+  );
+  const filterChips = [
+    ...Array.from(fm).map(v => ({ kind: "method", value: v, label: methodInfo(v).label })),
+    ...Array.from(fc).map(v => ({ kind: "category", value: v, label: v })),
+  ];
 
   el.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
@@ -908,9 +920,10 @@ function renderSummary() {
       </select>
     </div>
 
-    <div class="totals-grid">
+    <div class="section-head">Paid by <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter, pick multiple)</span></div>
+    <div class="totals-grid" style="margin-bottom:20px;">
       ${METHODS.map(m => {
-        const active = filter && filter.type === "method" && filter.value === m.id;
+        const active = fm.has(m.id);
         return `
         <div class="tot-card filter-card ${active?'filter-active':''}" data-filter-method="${m.id}" style="cursor:pointer;">
           <div class="tot-head">${icon(m.icon,13)}<span>${m.label}</span></div>
@@ -931,19 +944,14 @@ function renderSummary() {
 
     ${catTotals.length > 0 ? `
     <div style="margin-bottom:20px;">
-      <div class="section-head">By category <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter)</span></div>
-      <div class="entry-list">
+      <div class="section-head">By category <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter, pick multiple)</span></div>
+      <div class="cat-grid">
         ${catTotals.map(c => {
-          const active = filter && filter.type === "category" && filter.value === c.id;
+          const active = fc.has(c.id);
           return `
-          <div class="cat-bar-row filter-card ${active?'filter-active':''}" data-filter-category="${c.id}" style="cursor:pointer;">
-            ${icon(c.icon,14)}
-            <div style="flex:1;">
-              <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--text-strong);">
-                <span>${c.id}</span><span class="mono" style="font-weight:600;">${fmt(c.total)}</span>
-              </div>
-              <div class="bar-track"><div class="bar-fill" style="width:${stats.grand>0 ? (c.total/stats.grand*100) : 0}%"></div></div>
-            </div>
+          <div class="tot-card filter-card ${active?'filter-active':''}" data-filter-category="${c.id}" style="cursor:pointer;">
+            <div class="tot-head">${icon(c.icon,13)}<span>${c.id}</span></div>
+            <div class="tot-val mono">${fmt(c.total)}</div>
           </div>`;
         }).join("")}
       </div>
@@ -951,10 +959,13 @@ function renderSummary() {
 
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
       <div class="section-head" style="margin-bottom:0;">${monthLabelOf(state.selectedMonth)}'s entries</div>
-      ${filter ? `<button class="link-btn" id="clearFilterBtn" style="display:flex; align-items:center; gap:5px; color:var(--accent);">Filtering: ${filterLabel} ${icon("close",12)}</button>` : ""}
+      ${hasFilter ? `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        ${filterChips.map(f => `<button class="filter-chip" data-clear-kind="${f.kind}" data-clear-value="${f.value.replace(/"/g,'&quot;')}">${f.label} ${icon("close",10)}</button>`).join("")}
+        <button class="link-btn" id="clearFilterBtn">Clear all</button>
+      </div>` : ""}
     </div>
     <div class="entry-list">
-      ${filteredList.length === 0 ? `<div class="empty">${filter ? `No ${filterLabel} entries for ${monthLabelOf(state.selectedMonth)}.` : `No entries for ${monthLabelOf(state.selectedMonth)}.`}</div>` :
+      ${filteredList.length === 0 ? `<div class="empty">${hasFilter ? `No matching entries for ${monthLabelOf(state.selectedMonth)}.` : `No entries for ${monthLabelOf(state.selectedMonth)}.`}</div>` :
         filteredList.map(e => {
           const cInfo = categoryInfo(e.category);
           const mInfo = methodInfo(e.method);
@@ -977,16 +988,20 @@ function renderSummary() {
   el.querySelectorAll("[data-row]").forEach(b => b.addEventListener("click", () => handleDelete(parseInt(b.dataset.row))));
   el.querySelectorAll("[data-filter-method]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.filterMethod;
-    state.summaryFilter = (filter && filter.type === "method" && filter.value === val) ? null : { type: "method", value: val };
+    fm.has(val) ? fm.delete(val) : fm.add(val);
     renderSummary();
   }));
   el.querySelectorAll("[data-filter-category]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.filterCategory;
-    state.summaryFilter = (filter && filter.type === "category" && filter.value === val) ? null : { type: "category", value: val };
+    fc.has(val) ? fc.delete(val) : fc.add(val);
+    renderSummary();
+  }));
+  el.querySelectorAll("[data-clear-kind]").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.clearKind === "method") fm.delete(b.dataset.clearValue); else fc.delete(b.dataset.clearValue);
     renderSummary();
   }));
   const clearBtn = document.getElementById("clearFilterBtn");
-  if (clearBtn) clearBtn.addEventListener("click", () => { state.summaryFilter = null; renderSummary(); });
+  if (clearBtn) clearBtn.addEventListener("click", () => { fm.clear(); fc.clear(); renderSummary(); });
 }
 
 function renderCompare() {
