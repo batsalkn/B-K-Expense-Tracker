@@ -8,10 +8,77 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
   * { box-sizing: border-box; }
+
+  /* Theme 1: Terracotta & Sage (default) */
+  :root, html[data-theme="terracotta"] {
+    --bg: #FAF3E7; --card: #FFFDF8; --card-border: #E8DCC5;
+    --input-bg: #F3E9D7; --input-border: #D9C8A8;
+    --text-strong: #4A3B2A; --text-body: #5C4B3A; --text-secondary: #9C8768;
+    --text-faint: #B5A488; --text-footer: #AE9C7E; --divider: #EDE1CB;
+    --accent: #C17F56; --accent-rgb: 193,127,86;
+    --accent-2: #8B9A7A;
+    --positive: #8FA878; --positive-rgb: 143,168,120; --positive-border: #6B8F5A;
+    --negative: #C97A62; --negative-rgb: 201,122,98; --negative-border: #A85C46;
+    --gradient-start: #F5E6CE;
+    --btn-text: #FAF3E7;
+  }
+
+  /* Theme 2: Sage & Linen */
+  html[data-theme="sage"] {
+    --bg: #F4F1E8; --card: #FFFFFB; --card-border: #DCE0CB;
+    --input-bg: #EDEEE0; --input-border: #CBD2B8;
+    --text-strong: #3A4A35; --text-body: #46543F; --text-secondary: #7C8A6C;
+    --text-faint: #A8B39A; --text-footer: #98A488; --divider: #E3E7D6;
+    --accent: #7A9471; --accent-rgb: 122,148,113;
+    --accent-2: #B98F5E;
+    --positive: #96AD80; --positive-rgb: 150,173,128; --positive-border: #6B8F5A;
+    --negative: #C08560; --negative-rgb: 192,133,96; --negative-border: #A0653F;
+    --gradient-start: #E7EAD8;
+    --btn-text: #FFFFFB;
+  }
+
+  /* Theme 3: Blush & Sand */
+  html[data-theme="blush"] {
+    --bg: #FBF3EE; --card: #FFFFFC; --card-border: #EDDCD2;
+    --input-bg: #F6E9E1; --input-border: #E0C7B8;
+    --text-strong: #5A3E37; --text-body: #6B4C43; --text-secondary: #A6857C;
+    --text-faint: #C7AFA6; --text-footer: #B99C90; --divider: #F1E1D8;
+    --accent: #D98E82; --accent-rgb: 217,142,130;
+    --accent-2: #C9A46B;
+    --positive: #96AD8A; --positive-rgb: 150,173,138; --positive-border: #71906A;
+    --negative: #C97064; --negative-rgb: 201,112,100; --negative-border: #A34E42;
+    --gradient-start: #F6DED2;
+    --btn-text: #FFFFFC;
+  }
+
+  /* Theme 4: Midnight (the original dark navy & gold) */
+  html[data-theme="midnight"] {
+    --bg: #101B2D; --card: #16233A; --card-border: #24334E;
+    --input-bg: #0F1B2D; --input-border: #2C3E5E;
+    --text-strong: #F5F1E6; --text-body: #E9E4D8; --text-secondary: #8A97AD;
+    --text-faint: #6B7A93; --text-footer: #4A5872; --divider: #1F2C44;
+    --accent: #C9A24B; --accent-rgb: 201,162,75;
+    --accent-2: #5C7599;
+    --positive: #8FBF9F; --positive-rgb: 143,191,159; --positive-border: #3E6E52;
+    --negative: #D98686; --negative-rgb: 217,134,134; --negative-border: #6E3E3E;
+    --gradient-start: #1B2942;
+    --btn-text: #101B2D;
+  }
+
+  html { transition: none; }
+  body { transition: background 0.2s ease, color 0.2s ease; }
+  .theme-swatch {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; padding: 0; box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  }
+  .theme-swatch.active { border-color: var(--text-strong); }
+  .filter-card { transition: all 0.15s ease; }
+  .filter-card:hover { box-shadow: 0 0 0 1px var(--accent) inset; }
+  .filter-active { box-shadow: 0 0 0 2px var(--accent) inset; background: rgba(var(--accent-rgb),0.08); }
   body {
     margin: 0;
-    background: #101B2D;
-    color: #E9E4D8;
+    background: var(--bg);
+    color: var(--text-body);
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     padding: 32px 16px 64px;
   }
@@ -19,111 +86,119 @@
   .mono { font-family: 'JetBrains Mono', monospace; }
   input, select, button { font-family: inherit; }
   input:focus, select:focus, button:focus-visible {
-    outline: 2px solid #C9A24B;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  ::placeholder { color: #6B7A93; }
+  ::placeholder { color: var(--text-faint); }
   .wrap { max-width: 720px; margin: 0 auto; }
-  h1 { font-size: 34px; font-weight: 600; margin: 0; color: #F5F1E6; letter-spacing: -0.01em; }
-  .eyebrow { font-size: 11px; letter-spacing: 0.18em; color: #C9A24B; text-transform: uppercase; margin-bottom: 6px; }
-  .sub { font-size: 14px; color: #8A97AD; margin-top: 4px; }
+  h1 { font-size: 34px; font-weight: 600; margin: 0; color: var(--accent); letter-spacing: -0.01em; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin-bottom: 6px; }
+  .sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
   .tab-btn {
     display: flex; align-items: center; gap: 7px;
-    padding: 9px 16px; border-radius: 9px; border: 1px solid #24334E;
-    background: #16233A; color: #8A97AD; cursor: pointer; font-size: 13px; font-weight: 500;
+    padding: 9px 16px; border-radius: 9px; border: 1px solid var(--card-border);
+    background: var(--card); color: var(--text-secondary); cursor: pointer; font-size: 13px; font-weight: 500;
   }
-  .tab-btn.active { border-color: #C9A24B; background: rgba(201,162,75,0.12); color: #F5F1E6; }
-  .card { background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 18px; }
-  .label { font-size: 11px; color: #8A97AD; display: block; margin-bottom: 5px; }
-  .label .hint { color: #4A5872; }
+  .tab-btn.active { border-color: var(--accent); background: rgba(var(--accent-rgb),0.14); color: var(--text-strong); }
+  .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px; }
+  .label { font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 5px; }
+  .label .hint { color: var(--text-footer); }
   .input {
-    width: 100%; background: #0F1B2D; border: 1px solid #2C3E5E; border-radius: 8px;
-    padding: 10px 12px; color: #F5F1E6; font-size: 14px;
+    width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px;
+    padding: 10px 12px; color: var(--text-strong); font-size: 14px;
   }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
   .chip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
   #categoryGrid { grid-template-columns: repeat(3, 1fr); }
   .chip {
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    padding: 9px 4px; border-radius: 8px; border: 1px solid #2C3E5E;
-    background: #0F1B2D; color: #8A97AD; cursor: pointer; font-size: 10.5px; text-align: center; line-height: 1.25;
+    padding: 9px 4px; border-radius: 8px; border: 1px solid var(--input-border);
+    background: var(--input-bg); color: var(--text-secondary); cursor: pointer; font-size: 10.5px; text-align: center; line-height: 1.25;
   }
-  .chip.active { border-color: #C9A24B; background: rgba(201,162,75,0.12); color: #F5F1E6; }
+  .chip.active { border-color: var(--accent); background: rgba(var(--accent-rgb),0.14); color: var(--text-strong); }
   .chip svg { width: 15px; height: 15px; }
   .btn-primary {
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-    background: #C9A24B; color: #101B2D; border: none; border-radius: 8px; padding: 11px 16px;
+    background: var(--accent); color: var(--btn-text); border: none; border-radius: 8px; padding: 11px 16px;
     font-weight: 600; font-size: 14px; cursor: pointer;
   }
   .btn-primary:disabled { opacity: 0.5; cursor: default; }
-  .err { font-size: 12px; color: #D98686; margin-top: 8px; }
-  .ok { font-size: 12px; color: #8FBF9F; margin-top: 8px; }
-  .foot-note { text-align: center; font-size: 11px; color: #4A5872; margin-top: 20px; line-height: 1.6; }
+  .err { font-size: 12px; color: var(--negative); margin-top: 8px; }
+  .ok { font-size: 12px; color: var(--positive); margin-top: 8px; }
+  .foot-note { text-align: center; font-size: 11px; color: var(--text-footer); margin-top: 20px; line-height: 1.6; }
   .totals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-  .tot-card { background: #16233A; border: 1px solid #24334E; border-radius: 10px; padding: 12px 10px; }
+  .tot-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 10px; }
   .tot-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-  .tot-head span { font-size: 10px; letter-spacing: 0.06em; color: #8A97AD; text-transform: uppercase; }
-  .tot-val { font-size: 16px; font-weight: 600; color: #F5F1E6; }
+  .tot-head span { font-size: 10px; letter-spacing: 0.06em; color: var(--text-secondary); text-transform: uppercase; }
+  .tot-val { font-size: 16px; font-weight: 600; color: var(--text-strong); }
   .grand {
-    background: linear-gradient(135deg, #1B2942 0%, #16233A 100%); border: 1px solid #2C3E5E;
+    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--card) 100%); border: 1px solid var(--input-border);
     border-radius: 12px; padding: 18px 20px; margin-bottom: 20px;
     display: flex; justify-content: space-between; align-items: center;
   }
-  .section-head { font-size: 11px; letter-spacing: 0.1em; color: #8A97AD; text-transform: uppercase; margin-bottom: 10px; }
-  .entry-list { background: #16233A; border: 1px solid #24334E; border-radius: 14px; overflow: hidden; }
-  .entry-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid #1F2C44; }
+  .section-head { font-size: 11px; letter-spacing: 0.1em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px; }
+  .entry-list { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; }
+  .entry-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--divider); }
   .entry-row:first-child { border-top: none; }
-  .entry-row:hover { background: rgba(201, 162, 75, 0.06); }
-  .entry-icon { width: 32px; height: 32px; border-radius: 8px; background: #0F1B2D; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .entry-row:hover { background: rgba(var(--accent-rgb),0.08); }
+  .entry-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--input-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .entry-icon svg { width: 14px; height: 14px; }
   .entry-main { flex: 1; min-width: 0; }
-  .entry-title { font-size: 14px; color: #F5F1E6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .entry-sub { font-size: 11px; color: #6B7A93; margin-top: 2px; }
-  .entry-amt { font-size: 15px; font-weight: 600; color: #F5F1E6; }
-  .del-btn { background: none; border: none; color: #6B7A93; cursor: pointer; padding: 4px; display: flex; opacity: 0; transition: opacity .15s; }
+  .entry-title { font-size: 14px; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-sub { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .entry-amt { font-size: 15px; font-weight: 600; color: var(--text-strong); }
+  .del-btn { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 4px; display: flex; opacity: 0; transition: opacity .15s; }
   .entry-row:hover .del-btn { opacity: 1; }
-  .empty { padding: 28px; text-align: center; color: #6B7A93; font-size: 13px; }
-  .link-btn { background: none; border: none; color: #6B7A93; font-size: 12px; cursor: pointer; }
+  .empty { padding: 28px; text-align: center; color: var(--text-faint); font-size: 13px; }
+  .link-btn { background: none; border: none; color: var(--text-faint); font-size: 12px; cursor: pointer; }
   select.pill {
-    font-size: 15px; color: #F5F1E6; background: #16233A; border: 1px solid #24334E;
+    font-size: 15px; color: var(--text-strong); background: var(--card); border: 1px solid var(--card-border);
     border-radius: 8px; padding: 8px 10px; cursor: pointer;
   }
-  .cat-bar-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid #1F2C44; }
+  .cat-bar-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--divider); }
   .cat-bar-row:first-child { border-top: none; }
-  .bar-track { height: 4px; background: #0F1B2D; border-radius: 2px; overflow: hidden; margin-top: 6px; }
-  .bar-fill { height: 100%; background: #C9A24B; }
+  .bar-track { height: 4px; background: var(--input-bg); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .bar-fill { height: 100%; background: var(--accent); }
   .settings-panel {
-    background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 18px; margin-bottom: 20px;
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px; margin-bottom: 20px;
   }
   .status-pill {
-    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #8A97AD;
-    background: #0F1B2D; border: 1px solid #2C3E5E; border-radius: 999px; padding: 5px 12px;
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary);
+    background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 999px; padding: 5px 12px;
     transition: all 0.2s ease;
   }
-  .status-pill.on { color: #8FBF9F; background: rgba(143,191,159,0.12); border-color: #3E6E52; }
-  .status-pill.off { color: #D98686; background: rgba(217,134,134,0.12); border-color: #6E3E3E; }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #6B7A93; }
-  .status-dot.on { background: #8FBF9F; }
-  .status-dot.off { background: #D98686; }
+  .status-pill.on { color: var(--positive); background: rgba(var(--positive-rgb),0.13); border-color: var(--positive-border); }
+  .status-pill.off { color: var(--negative); background: rgba(var(--negative-rgb),0.14); border-color: var(--negative-border); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+  .status-dot.on { background: var(--positive); }
+  .status-dot.off { background: var(--negative); }
   svg.icon { stroke: currentColor; fill: none; stroke-width: 2; }
   .compare-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-  .compare-chart { background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 16px; }
+  .compare-chart { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 16px; }
   .legend { display: flex; gap: 16px; justify-content: flex-end; margin-bottom: 10px; }
-  .legend-dot { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #8A97AD; }
+  .legend-dot { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); }
   .legend-dot span { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
   .chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-  .chart-label { width: 110px; font-size: 12px; color: #E9E4D8; flex-shrink: 0; }
+  .chart-label { width: 110px; font-size: 12px; color: var(--text-body); flex-shrink: 0; }
   .chart-bars { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-  .chart-bar-track { background: #0F1B2D; border-radius: 3px; height: 12px; overflow: hidden; }
+  .chart-bar-track { background: var(--input-bg); border-radius: 3px; height: 12px; overflow: hidden; }
   .chart-bar-fill { height: 100%; border-radius: 3px; }
-  .chart-val { font-size: 10px; color: #6B7A93; margin-left: 4px; }
+  .chart-val { font-size: 10px; color: var(--text-faint); margin-left: 4px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div style="margin-bottom: 22px;">
+  <div style="margin-bottom: 14px;">
     <h1>B&amp;K Expenses Tracker</h1>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom: 22px;" id="themeSwitcher">
+    <span style="font-size:11px; color:var(--text-faint);">Theme:</span>
+    <button type="button" class="theme-swatch" data-theme="terracotta" title="Terracotta &amp; Sage" style="background: linear-gradient(135deg, #C17F56 50%, #8FA878 50%);"></button>
+    <button type="button" class="theme-swatch" data-theme="sage" title="Sage &amp; Linen" style="background: linear-gradient(135deg, #7A9471 50%, #B98F5E 50%);"></button>
+    <button type="button" class="theme-swatch" data-theme="blush" title="Blush &amp; Sand" style="background: linear-gradient(135deg, #D98E82 50%, #C9A46B 50%);"></button>
+    <button type="button" class="theme-swatch" data-theme="midnight" title="Midnight" style="background: linear-gradient(135deg, #101B2D 50%, #C9A24B 50%);"></button>
   </div>
 
   <div class="settings-panel" id="settingsPanel">
@@ -151,7 +226,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
-        <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:#5C7599; color:#F5F1E6;">Connect Google Account</button>
+        <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:var(--accent-2); color:var(--text-strong);">Connect Google Account</button>
       </div>
       <div class="foot-note" style="margin-top:10px; text-align:left;">
         One-time setup only — saved in this browser. See the setup guide for how to get these two values.
@@ -234,6 +309,7 @@ const ICONS = {
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
   swap: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
 };
 function icon(name, size) {
   size = size || 15;
@@ -261,6 +337,7 @@ let state = {
   compareB: monthKey(todayStr()),
   accessToken: null,
   sheetGid: null,
+  summaryFilter: null, // { type: "method"|"category", value: string } | null
 };
 
 /* ---------- Google auth + Sheets API ---------- */
@@ -560,7 +637,7 @@ function renderCategoryMapping() {
         const guess = guessCategoryMatch(v);
         return `
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-          <div style="flex:1; font-size:13px; color:#E9E4D8;">${v}</div>
+          <div style="flex:1; font-size:13px; color:var(--text-body);">${v}</div>
           <select class="input categoryMapSelect" data-raw="${v.replace(/"/g,'&quot;')}" style="width:auto;">
             ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===guess?'selected':''}>${c.id}</option>`).join("")}
           </select>
@@ -581,7 +658,7 @@ function renderMethodMapping() {
         const guess = guessMethodMatch(v);
         return `
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-          <div style="flex:1; font-size:13px; color:#E9E4D8;">${v}</div>
+          <div style="flex:1; font-size:13px; color:var(--text-body);">${v}</div>
           <select class="input methodMapSelect" data-raw="${v.replace(/"/g,'&quot;')}" style="width:auto;">
             ${METHODS.map(m => `<option value="${m.id}" ${m.id===guess?'selected':''}>${m.label}</option>`).join("")}
           </select>
@@ -751,7 +828,7 @@ function renderAdd() {
 
       <div style="display:flex; align-items:center; gap:10px;">
         <button class="btn-primary" id="addBtn" style="flex:1;">${icon("plus",16)} Add entry</button>
-        <span id="readyIndicator" style="width:32px; height:32px; border-radius:50%; background:#0F1B2D; border:1px solid #2C3E5E; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: all 0.2s ease;" title="Turns green once amount and category are filled in"></span>
+        <span id="readyIndicator" style="width:32px; height:32px; border-radius:50%; background:var(--input-bg); border:1px solid var(--input-border); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: all 0.2s ease;" title="Turns green once amount and category are filled in"></span>
       </div>
       <div class="err" id="addError"></div>
       <div class="ok" id="addOk"></div>
@@ -766,12 +843,12 @@ function renderAdd() {
     const ready = amt > 0 && !!state.category;
     const ind = document.getElementById("readyIndicator");
     if (ready) {
-      ind.style.background = "rgba(143,191,159,0.15)";
-      ind.style.borderColor = "#3E6E52";
-      ind.innerHTML = icon("check", 15).replace('class="icon"', 'class="icon" style="stroke:#8FBF9F;"');
+      ind.style.background = "rgba(var(--positive-rgb),0.16)";
+      ind.style.borderColor = "var(--positive-border)";
+      ind.innerHTML = icon("check", 15).replace('class="icon"', 'class="icon" style="stroke:var(--positive);"');
     } else {
-      ind.style.background = "#0F1B2D";
-      ind.style.borderColor = "#2C3E5E";
+      ind.style.background = "var(--input-bg)";
+      ind.style.borderColor = "var(--input-border)";
       ind.innerHTML = "";
     }
   }
@@ -818,6 +895,12 @@ function renderSummary() {
   const sortedList = [...stats.list].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
   const catTotals = Object.keys(stats.catMap).map(id => ({ id, icon: categoryInfo(id).icon, total: stats.catMap[id] })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
 
+  const filter = state.summaryFilter;
+  const filteredList = filter
+    ? sortedList.filter(e => filter.type === "method" ? e.method === filter.value : e.category === filter.value)
+    : sortedList;
+  const filterLabel = filter ? (filter.type === "method" ? methodInfo(filter.value).label : filter.value) : "";
+
   el.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <select class="pill ledger-font" id="monthSelect">
@@ -826,46 +909,53 @@ function renderSummary() {
     </div>
 
     <div class="totals-grid">
-      ${METHODS.map(m => `
-        <div class="tot-card">
+      ${METHODS.map(m => {
+        const active = filter && filter.type === "method" && filter.value === m.id;
+        return `
+        <div class="tot-card filter-card ${active?'filter-active':''}" data-filter-method="${m.id}" style="cursor:pointer;">
           <div class="tot-head">${icon(m.icon,13)}<span>${m.label}</span></div>
           <div class="tot-val mono">${fmt(stats.base[m.id])}</div>
-        </div>`).join("")}
+        </div>`;
+      }).join("")}
     </div>
 
     <div class="grand">
       <div>
-        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">
           ${state.selectedMonth === thisMonth ? "Month-to-date total" : "Month total"}
         </div>
-        <div class="ledger-font" style="font-size:15px; color:#C9A24B; margin-top:2px;">${stats.count} ${stats.count===1?'entry':'entries'}</div>
+        <div class="ledger-font" style="font-size:15px; color:var(--accent); margin-top:2px;">${stats.count} ${stats.count===1?'entry':'entries'}</div>
       </div>
-      <div class="mono" style="font-size:28px; font-weight:600; color:#F5F1E6;">${fmt(stats.grand)}</div>
+      <div class="mono" style="font-size:28px; font-weight:600; color:var(--text-strong);">${fmt(stats.grand)}</div>
     </div>
 
     ${catTotals.length > 0 ? `
     <div style="margin-bottom:20px;">
-      <div class="section-head">By category</div>
+      <div class="section-head">By category <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter)</span></div>
       <div class="entry-list">
-        ${catTotals.map(c => `
-          <div class="cat-bar-row">
+        ${catTotals.map(c => {
+          const active = filter && filter.type === "category" && filter.value === c.id;
+          return `
+          <div class="cat-bar-row filter-card ${active?'filter-active':''}" data-filter-category="${c.id}" style="cursor:pointer;">
             ${icon(c.icon,14)}
             <div style="flex:1;">
-              <div style="display:flex; justify-content:space-between; font-size:13px; color:#F5F1E6;">
+              <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--text-strong);">
                 <span>${c.id}</span><span class="mono" style="font-weight:600;">${fmt(c.total)}</span>
               </div>
               <div class="bar-track"><div class="bar-fill" style="width:${stats.grand>0 ? (c.total/stats.grand*100) : 0}%"></div></div>
             </div>
-          </div>`).join("")}
+          </div>`;
+        }).join("")}
       </div>
     </div>` : ""}
 
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
       <div class="section-head" style="margin-bottom:0;">${monthLabelOf(state.selectedMonth)}'s entries</div>
+      ${filter ? `<button class="link-btn" id="clearFilterBtn" style="display:flex; align-items:center; gap:5px; color:var(--accent);">Filtering: ${filterLabel} ${icon("close",12)}</button>` : ""}
     </div>
     <div class="entry-list">
-      ${sortedList.length === 0 ? `<div class="empty">No entries for ${monthLabelOf(state.selectedMonth)}.</div>` :
-        sortedList.map(e => {
+      ${filteredList.length === 0 ? `<div class="empty">${filter ? `No ${filterLabel} entries for ${monthLabelOf(state.selectedMonth)}.` : `No entries for ${monthLabelOf(state.selectedMonth)}.`}</div>` :
+        filteredList.map(e => {
           const cInfo = categoryInfo(e.category);
           const mInfo = methodInfo(e.method);
           const label = e.note ? `${e.category} · ${e.note}` : e.category;
@@ -885,6 +975,18 @@ function renderSummary() {
   `;
   document.getElementById("monthSelect").addEventListener("change", (e) => { state.selectedMonth = e.target.value; renderSummary(); });
   el.querySelectorAll("[data-row]").forEach(b => b.addEventListener("click", () => handleDelete(parseInt(b.dataset.row))));
+  el.querySelectorAll("[data-filter-method]").forEach(b => b.addEventListener("click", () => {
+    const val = b.dataset.filterMethod;
+    state.summaryFilter = (filter && filter.type === "method" && filter.value === val) ? null : { type: "method", value: val };
+    renderSummary();
+  }));
+  el.querySelectorAll("[data-filter-category]").forEach(b => b.addEventListener("click", () => {
+    const val = b.dataset.filterCategory;
+    state.summaryFilter = (filter && filter.type === "category" && filter.value === val) ? null : { type: "category", value: val };
+    renderSummary();
+  }));
+  const clearBtn = document.getElementById("clearFilterBtn");
+  if (clearBtn) clearBtn.addEventListener("click", () => { state.summaryFilter = null; renderSummary(); });
 }
 
 function renderCompare() {
@@ -905,7 +1007,7 @@ function renderCompare() {
     const flat = Math.abs(diff) < 0.005;
     const up = diff > 0;
     const pct = a>0 ? (diff/a*100) : (diff>0?100:0);
-    const color = flat ? "#6B7A93" : up ? "#D98686" : "#8FBF9F";
+    const color = flat ? "var(--text-faint)" : up ? "var(--negative)" : "var(--positive)";
     return `<span class="mono" style="color:${color}; font-weight:600; font-size:13px;">${flat?'—':(up?'+':'')+pct.toFixed(0)+'%'}</span>`;
   }
 
@@ -919,11 +1021,11 @@ function renderCompare() {
           <div class="chart-label">${it.label || it.id}</div>
           <div class="chart-bars">
             <div style="display:flex; align-items:center;">
-              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(a/maxVal*100)}%; background:#5C7599;"></div></div>
+              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(a/maxVal*100)}%; background:var(--accent-2);"></div></div>
               <span class="chart-val mono">${fmt(a)}</span>
             </div>
             <div style="display:flex; align-items:center;">
-              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(b/maxVal*100)}%; background:#C9A24B;"></div></div>
+              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(b/maxVal*100)}%; background:var(--accent);"></div></div>
               <span class="chart-val mono">${fmt(b)}</span>
             </div>
           </div>
@@ -947,20 +1049,20 @@ function renderCompare() {
 
     <div class="grand">
       <div>
-        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">${monthLabelOf(state.compareA)}</div>
-        <div class="mono" style="font-size:20px; font-weight:600; color:#F5F1E6; margin-top:4px;">${fmt(statsA.grand)}</div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">${monthLabelOf(state.compareA)}</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:var(--text-strong); margin-top:4px;">${fmt(statsA.grand)}</div>
       </div>
       ${deltaBadge(statsA.grand, statsB.grand)}
       <div style="text-align:right;">
-        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">${monthLabelOf(state.compareB)}</div>
-        <div class="mono" style="font-size:20px; font-weight:600; color:#F5F1E6; margin-top:4px;">${fmt(statsB.grand)}</div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">${monthLabelOf(state.compareB)}</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:var(--text-strong); margin-top:4px;">${fmt(statsB.grand)}</div>
       </div>
     </div>
 
     <div style="margin-bottom:20px;">
       <div class="section-head">By payment method</div>
       <div class="compare-chart">
-        <div class="legend"><div class="legend-dot"><span style="background:#5C7599;"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:#C9A24B;"></span>${monthLabelOf(state.compareB)}</div></div>
+        <div class="legend"><div class="legend-dot"><span style="background:var(--accent-2);"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:var(--accent);"></span>${monthLabelOf(state.compareB)}</div></div>
         ${methodRows || `<div class="empty">No entries in either month.</div>`}
       </div>
     </div>
@@ -968,7 +1070,7 @@ function renderCompare() {
     <div style="margin-bottom:20px;">
       <div class="section-head">By category</div>
       <div class="compare-chart">
-        <div class="legend"><div class="legend-dot"><span style="background:#5C7599;"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:#C9A24B;"></span>${monthLabelOf(state.compareB)}</div></div>
+        <div class="legend"><div class="legend-dot"><span style="background:var(--accent-2);"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:var(--accent);"></span>${monthLabelOf(state.compareB)}</div></div>
         ${catRows || `<div class="empty">No entries in either month.</div>`}
       </div>
     </div>
@@ -983,7 +1085,18 @@ document.querySelectorAll(".tab-btn").forEach(b => {
   b.addEventListener("click", () => { state.page = b.dataset.page; render(); });
 });
 
+function applyTheme(themeName) {
+  document.documentElement.setAttribute("data-theme", themeName);
+  localStorage.setItem("el_theme", themeName);
+  document.querySelectorAll(".theme-swatch").forEach(b => b.classList.toggle("active", b.dataset.theme === themeName));
+}
+
+document.querySelectorAll(".theme-swatch").forEach(b => {
+  b.addEventListener("click", () => applyTheme(b.dataset.theme));
+});
+
 window.addEventListener("DOMContentLoaded", () => {
+  applyTheme(localStorage.getItem("el_theme") || "terracotta");
   const { clientId, sheetId } = getSettings();
   document.getElementById("clientIdInput").value = clientId;
   document.getElementById("sheetIdInput").value = sheetId;
