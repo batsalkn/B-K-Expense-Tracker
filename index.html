@@ -127,30 +127,35 @@
   </div>
 
   <div class="settings-panel" id="settingsPanel">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
+    <div style="display:flex; align-items:center; justify-content:space-between;" id="settingsHeaderRow">
       <div class="section-head" style="margin-bottom:0;">Google Sheets connection</div>
-      <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></span>
-    </div>
-    <div class="row2">
-      <div>
-        <label class="label">OAuth Client ID</label>
-        <input class="input" id="clientIdInput" placeholder="xxxx.apps.googleusercontent.com" />
-      </div>
-      <div>
-        <label class="label">Spreadsheet ID</label>
-        <input class="input" id="sheetIdInput" placeholder="from the sheet's URL" />
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></span>
+        <button class="link-btn" id="settingsToggleBtn" style="display:none;">Edit</button>
       </div>
     </div>
-    <label class="label">Tab name <span class="hint">(the sheet tab at the bottom, default "Sheet1")</span></label>
-    <div style="margin-bottom:10px;">
-      <input class="input" id="tabNameInput" placeholder="Sheet1" />
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
-      <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:#5C7599; color:#F5F1E6;">Connect Google Account</button>
-    </div>
-    <div class="foot-note" style="margin-top:10px; text-align:left;">
-      One-time setup only — saved in this browser. See the setup guide for how to get these two values.
+    <div id="settingsFields" style="margin-top:12px;">
+      <div class="row2">
+        <div>
+          <label class="label">OAuth Client ID</label>
+          <input class="input" id="clientIdInput" placeholder="xxxx.apps.googleusercontent.com" />
+        </div>
+        <div>
+          <label class="label">Spreadsheet ID</label>
+          <input class="input" id="sheetIdInput" placeholder="from the sheet's URL" />
+        </div>
+      </div>
+      <label class="label">Tab name <span class="hint">(the sheet tab at the bottom, default "Sheet1")</span></label>
+      <div style="margin-bottom:10px;">
+        <input class="input" id="tabNameInput" placeholder="Sheet1" />
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
+        <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:#5C7599; color:#F5F1E6;">Connect Google Account</button>
+      </div>
+      <div class="foot-note" style="margin-top:10px; text-align:left;">
+        One-time setup only — saved in this browser. See the setup guide for how to get these two values.
+      </div>
     </div>
   </div>
 
@@ -274,7 +279,15 @@ function setStatus(text, kind) {
   dot.className = "status-dot" + (kind ? " " + kind : "");
   const pill = document.getElementById("statusPill");
   pill.className = "status-pill" + (kind ? " " + kind : "");
+  setSettingsCollapsed(kind === "on");
 }
+
+function setSettingsCollapsed(collapsed) {
+  document.getElementById("settingsFields").style.display = collapsed ? "none" : "block";
+  document.getElementById("settingsToggleBtn").style.display = collapsed ? "inline-block" : "none";
+}
+
+document.getElementById("settingsToggleBtn").addEventListener("click", () => setSettingsCollapsed(false));
 
 function initAuth() {
   const { clientId } = getSettings();
