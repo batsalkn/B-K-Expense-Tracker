@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense Ledger</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #101B2D;
+    color: #E9E4D8;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    padding: 32px 16px 64px;
+  }
+  .ledger-font { font-family: 'Fraunces', Georgia, serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  input, select, button { font-family: inherit; }
+  input:focus, select:focus, button:focus-visible {
+    outline: 2px solid #C9A24B;
+    outline-offset: 2px;
+  }
+  ::placeholder { color: #6B7A93; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 34px; font-weight: 600; margin: 0; color: #F5F1E6; letter-spacing: -0.01em; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.18em; color: #C9A24B; text-transform: uppercase; margin-bottom: 6px; }
+  .sub { font-size: 14px; color: #8A97AD; margin-top: 4px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+  .tab-btn {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 9px; border: 1px solid #24334E;
+    background: #16233A; color: #8A97AD; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .tab-btn.active { border-color: #C9A24B; background: rgba(201,162,75,0.12); color: #F5F1E6; }
+  .card { background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 18px; }
+  .label { font-size: 11px; color: #8A97AD; display: block; margin-bottom: 5px; }
+  .label .hint { color: #4A5872; }
+  .input {
+    width: 100%; background: #0F1B2D; border: 1px solid #2C3E5E; border-radius: 8px;
+    padding: 10px 12px; color: #F5F1E6; font-size: 14px;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .chip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .chip {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 9px 4px; border-radius: 8px; border: 1px solid #2C3E5E;
+    background: #0F1B2D; color: #8A97AD; cursor: pointer; font-size: 10.5px; text-align: center; line-height: 1.25;
+  }
+  .chip.active { border-color: #C9A24B; background: rgba(201,162,75,0.12); color: #F5F1E6; }
+  .chip svg { width: 15px; height: 15px; }
+  .btn-primary {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #C9A24B; color: #101B2D; border: none; border-radius: 8px; padding: 11px 16px;
+    font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: default; }
+  .err { font-size: 12px; color: #D98686; margin-top: 8px; }
+  .ok { font-size: 12px; color: #8FBF9F; margin-top: 8px; }
+  .foot-note { text-align: center; font-size: 11px; color: #4A5872; margin-top: 20px; line-height: 1.6; }
+  .totals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .tot-card { background: #16233A; border: 1px solid #24334E; border-radius: 10px; padding: 12px 10px; }
+  .tot-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .tot-head span { font-size: 10px; letter-spacing: 0.06em; color: #8A97AD; text-transform: uppercase; }
+  .tot-val { font-size: 16px; font-weight: 600; color: #F5F1E6; }
+  .grand {
+    background: linear-gradient(135deg, #1B2942 0%, #16233A 100%); border: 1px solid #2C3E5E;
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-head { font-size: 11px; letter-spacing: 0.1em; color: #8A97AD; text-transform: uppercase; margin-bottom: 10px; }
+  .entry-list { background: #16233A; border: 1px solid #24334E; border-radius: 14px; overflow: hidden; }
+  .entry-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid #1F2C44; }
+  .entry-row:first-child { border-top: none; }
+  .entry-row:hover { background: rgba(201, 162, 75, 0.06); }
+  .entry-icon { width: 32px; height: 32px; border-radius: 8px; background: #0F1B2D; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .entry-icon svg { width: 14px; height: 14px; }
+  .entry-main { flex: 1; min-width: 0; }
+  .entry-title { font-size: 14px; color: #F5F1E6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-sub { font-size: 11px; color: #6B7A93; margin-top: 2px; }
+  .entry-amt { font-size: 15px; font-weight: 600; color: #F5F1E6; }
+  .del-btn { background: none; border: none; color: #6B7A93; cursor: pointer; padding: 4px; display: flex; opacity: 0; transition: opacity .15s; }
+  .entry-row:hover .del-btn { opacity: 1; }
+  .empty { padding: 28px; text-align: center; color: #6B7A93; font-size: 13px; }
+  .link-btn { background: none; border: none; color: #6B7A93; font-size: 12px; cursor: pointer; }
+  select.pill {
+    font-size: 15px; color: #F5F1E6; background: #16233A; border: 1px solid #24334E;
+    border-radius: 8px; padding: 8px 10px; cursor: pointer;
+  }
+  .cat-bar-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid #1F2C44; }
+  .cat-bar-row:first-child { border-top: none; }
+  .bar-track { height: 4px; background: #0F1B2D; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .bar-fill { height: 100%; background: #C9A24B; }
+  .settings-panel {
+    background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 18px; margin-bottom: 20px;
+  }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #8A97AD;
+    background: #0F1B2D; border: 1px solid #2C3E5E; border-radius: 999px; padding: 5px 12px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #6B7A93; }
+  .status-dot.on { background: #8FBF9F; }
+  .status-dot.off { background: #D98686; }
+  svg.icon { stroke: currentColor; fill: none; stroke-width: 2; }
+  .compare-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .compare-chart { background: #16233A; border: 1px solid #24334E; border-radius: 14px; padding: 16px; }
+  .legend { display: flex; gap: 16px; justify-content: flex-end; margin-bottom: 10px; }
+  .legend-dot { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #8A97AD; }
+  .legend-dot span { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .chart-label { width: 110px; font-size: 12px; color: #E9E4D8; flex-shrink: 0; }
+  .chart-bars { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .chart-bar-track { background: #0F1B2D; border-radius: 3px; height: 12px; overflow: hidden; }
+  .chart-bar-fill { height: 100%; border-radius: 3px; }
+  .chart-val { font-size: 10px; color: #6B7A93; margin-left: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="margin-bottom: 22px;">
+    <div class="eyebrow">Ledger</div>
+    <h1>Expense Ledger</h1>
+    <div class="sub">Log what was paid, how, and why — synced live to Google Sheets.</div>
+  </div>
+
+  <div class="settings-panel" id="settingsPanel">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
+      <div class="section-head" style="margin-bottom:0;">Google Sheets connection</div>
+      <span class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></span>
+    </div>
+    <div class="row2">
+      <div>
+        <label class="label">OAuth Client ID</label>
+        <input class="input" id="clientIdInput" placeholder="xxxx.apps.googleusercontent.com" />
+      </div>
+      <div>
+        <label class="label">Spreadsheet ID</label>
+        <input class="input" id="sheetIdInput" placeholder="from the sheet's URL" />
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
+      <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:#5C7599; color:#F5F1E6;">Connect Google Account</button>
+    </div>
+    <div class="foot-note" style="margin-top:10px; text-align:left;">
+      One-time setup only — saved in this browser. See the setup guide for how to get these two values.
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-page="add">Add Expense</button>
+    <button class="tab-btn" data-page="summary">Summary (MTD)</button>
+    <button class="tab-btn" data-page="compare">Compare</button>
+  </div>
+
+  <div id="page-add"></div>
+  <div id="page-summary" style="display:none;"></div>
+  <div id="page-compare" style="display:none;"></div>
+</div>
+
+<script>
+/* ---------- Config / constants ---------- */
+const METHODS = [
+  { id: "cash", label: "Cash", icon: "wallet" },
+  { id: "joint", label: "Joint Bank", icon: "users" },
+  { id: "personal", label: "Personal Bank", icon: "landmark" },
+  { id: "credit", label: "Credit Card", icon: "card" },
+];
+const CATEGORIES = [
+  { id: "Groceries", icon: "cart" },
+  { id: "Tea & Coffee", icon: "coffee" },
+  { id: "Dine Out / Takeaway", icon: "utensils" },
+  { id: "Home Expenses", icon: "home" },
+  { id: "Family Exp", icon: "heart" },
+  { id: "Repayments", icon: "refresh" },
+  { id: "Others", icon: "more" },
+];
+const SHEET_RANGE = "Sheet1!A:F"; // Date, Category, Remarks, Method, Amount, RowId(timestamp)
+const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+
+const ICONS = {
+  wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  landmark: '<line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  card: '<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+  coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/>',
+  utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  heart: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  swap: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+};
+function icon(name, size) {
+  size = size || 15;
+  return '<svg class="icon" viewBox="0 0 24 24" width="'+size+'" height="'+size+'">' + (ICONS[name]||"") + "</svg>";
+}
+function methodInfo(id) { return METHODS.find(m => m.id === id) || METHODS[0]; }
+function categoryInfo(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[CATEGORIES.length-1]; }
+function fmt(n) { n = Number(n) || 0; return n.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function monthKey(d) { return (d||"").slice(0,7); }
+function monthLabelOf(mKey) {
+  const parts = mKey.split("-").map(Number);
+  return new Date(parts[0], parts[1]-1, 1).toLocaleDateString(undefined, {month:"long", year:"numeric"});
+}
+
+/* ---------- State ---------- */
+let state = {
+  page: "add",
+  entries: [],       // {rowIndex, date, category, note, method, amount}
+  loading: true,
+  category: "",
+  method: "cash",
+  selectedMonth: monthKey(todayStr()),
+  compareA: "",
+  compareB: monthKey(todayStr()),
+  accessToken: null,
+  sheetGid: null,
+};
+
+/* ---------- Google auth + Sheets API ---------- */
+let tokenClient = null;
+
+function getSettings() {
+  return {
+    clientId: localStorage.getItem("el_client_id") || "",
+    sheetId: localStorage.getItem("el_sheet_id") || "",
+  };
+}
+
+function setStatus(text, kind) {
+  document.getElementById("statusText").textContent = text;
+  const dot = document.getElementById("statusDot");
+  dot.className = "status-dot" + (kind ? " " + kind : "");
+}
+
+function initAuth() {
+  const { clientId } = getSettings();
+  if (!clientId || !window.google) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { setStatus("Connection failed", "off"); return; }
+      state.accessToken = resp.access_token;
+      setStatus("Connected", "on");
+      await loadEntries();
+    },
+  });
+}
+
+document.getElementById("saveSettingsBtn").addEventListener("click", () => {
+  const clientId = document.getElementById("clientIdInput").value.trim();
+  const sheetId = document.getElementById("sheetIdInput").value.trim();
+  localStorage.setItem("el_client_id", clientId);
+  localStorage.setItem("el_sheet_id", sheetId);
+  initAuth();
+  setStatus(clientId && sheetId ? "Saved — click Connect" : "Not connected");
+});
+
+document.getElementById("connectBtn").addEventListener("click", () => {
+  const { clientId, sheetId } = getSettings();
+  if (!clientId || !sheetId) { alert("Enter your Client ID and Spreadsheet ID first, then Save."); return; }
+  if (!tokenClient) initAuth();
+  if (tokenClient) tokenClient.requestAccessToken();
+});
+
+async function sheetsFetch(path, opts) {
+  opts = opts || {};
+  const { sheetId } = getSettings();
+  const url = "https://sheets.googleapis.com/v4/spreadsheets/" + sheetId + path;
+  const res = await fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({ "Authorization": "Bearer " + state.accessToken, "Content-Type": "application/json" }, opts.headers || {}),
+  }));
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error("Sheets API error " + res.status + ": " + body);
+  }
+  return res.json();
+}
+
+async function ensureHeaderAndGid() {
+  const meta = await sheetsFetch("?fields=sheets.properties");
+  state.sheetGid = meta.sheets[0].properties.sheetId;
+  const vals = await sheetsFetch("/values/" + encodeURIComponent(SHEET_RANGE));
+  if (!vals.values || vals.values.length === 0) {
+    await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A1") + ":append?valueInputOption=USER_ENTERED", {
+      method: "POST",
+      body: JSON.stringify({ values: [["Date","Category","Remarks","Method","Amount","RowId"]] }),
+    });
+  }
+}
+
+async function loadEntries() {
+  state.loading = true;
+  render();
+  try {
+    await ensureHeaderAndGid();
+    const vals = await sheetsFetch("/values/" + encodeURIComponent(SHEET_RANGE));
+    const rows = (vals.values || []).slice(1); // skip header
+    state.entries = rows.map((r, i) => ({
+      sheetRow: i + 2, // 1-indexed, +1 for header
+      date: r[0] || "",
+      category: r[1] || "",
+      note: r[2] || "",
+      method: (METHODS.find(m => m.label === r[3]) || {}).id || "cash",
+      amount: parseFloat(r[4]) || 0,
+      rowId: r[5] || "",
+    }));
+  } catch (e) {
+    console.error(e);
+    setStatus("Sync error", "off");
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+async function appendEntry(entry) {
+  const row = [entry.date, entry.category, entry.note, methodInfo(entry.method).label, entry.amount.toFixed(2), entry.rowId];
+  await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A:F") + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
+    method: "POST",
+    body: JSON.stringify({ values: [row] }),
+  });
+}
+
+async function deleteEntryRow(sheetRow) {
+  await sheetsFetch(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [{
+        deleteDimension: {
+          range: { sheetId: state.sheetGid, dimension: "ROWS", startIndex: sheetRow - 1, endIndex: sheetRow }
+        }
+      }]
+    }),
+  });
+}
+
+/* ---------- Actions ---------- */
+async function handleAdd() {
+  const amountInput = document.getElementById("amountInput");
+  const dateInput = document.getElementById("dateInput");
+  const noteInput = document.getElementById("noteInput");
+  const errEl = document.getElementById("addError");
+  const okEl = document.getElementById("addOk");
+  errEl.textContent = ""; okEl.textContent = "";
+
+  const amt = parseFloat(amountInput.value);
+  if (!amt || amt <= 0) { errEl.textContent = "Enter an amount greater than zero."; return; }
+  if (!state.category) { errEl.textContent = "Pick what this was for."; return; }
+  if (!state.accessToken) { errEl.textContent = "Connect your Google account first (top of page)."; return; }
+
+  const entry = {
+    date: dateInput.value || todayStr(),
+    category: state.category,
+    note: noteInput.value.trim(),
+    method: state.method,
+    amount: amt,
+    rowId: Date.now() + "-" + Math.random().toString(36).slice(2,7),
+  };
+
+  const btn = document.getElementById("addBtn");
+  btn.disabled = true;
+  try {
+    await appendEntry(entry);
+    okEl.textContent = "Added ✓ synced to your sheet";
+    amountInput.value = "";
+    noteInput.value = "";
+    state.category = "";
+    await loadEntries();
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = "Couldn't save to Google Sheets. Check your connection and try again.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleDelete(sheetRow) {
+  try {
+    await deleteEntryRow(sheetRow);
+    await loadEntries();
+  } catch (e) {
+    console.error(e);
+    alert("Couldn't delete that entry. Try again.");
+  }
+}
+
+/* ---------- Rendering ---------- */
+function render() {
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.page === state.page);
+  });
+  document.getElementById("page-add").style.display = state.page === "add" ? "block" : "none";
+  document.getElementById("page-summary").style.display = state.page === "summary" ? "block" : "none";
+  document.getElementById("page-compare").style.display = state.page === "compare" ? "block" : "none";
+
+  if (state.page === "add") renderAdd();
+  if (state.page === "summary") renderSummary();
+  if (state.page === "compare") renderCompare();
+}
+
+function renderAdd() {
+  const el = document.getElementById("page-add");
+  el.innerHTML = `
+    <div class="card">
+      <div class="row2">
+        <div>
+          <label class="label">Amount</label>
+          <input class="input mono" id="amountInput" type="number" inputmode="decimal" step="0.01" placeholder="0.00" />
+        </div>
+        <div>
+          <label class="label">Date <span class="hint">(auto, amend if needed)</span></label>
+          <input class="input mono" id="dateInput" type="date" value="${todayStr()}" />
+        </div>
+      </div>
+
+      <label class="label">Paid by</label>
+      <div class="chip-grid" id="methodGrid">
+        ${METHODS.map(m => `<button type="button" class="chip ${m.id===state.method?'active':''}" data-method="${m.id}">${icon(m.icon)}${m.label}</button>`).join("")}
+      </div>
+
+      <label class="label">Paid for</label>
+      <div class="chip-grid" id="categoryGrid">
+        ${CATEGORIES.map(c => `<button type="button" class="chip ${c.id===state.category?'active':''}" data-category="${c.id}">${icon(c.icon)}${c.id}</button>`).join("")}
+      </div>
+
+      <label class="label">Remarks <span class="hint">(optional — shop, who, details)</span></label>
+      <div style="margin-bottom:10px;">
+        <input class="input" id="noteInput" type="text" placeholder="e.g. NTUC Bishan, Grab to airport, John's birthday gift" />
+      </div>
+
+      <button class="btn-primary" id="addBtn">${icon("plus",16)} Add entry</button>
+      <div class="err" id="addError"></div>
+      <div class="ok" id="addOk"></div>
+    </div>
+    <div class="foot-note">
+      Entries sync straight to your shared Google Sheet — anyone signed in with access to that sheet sees the same list.
+      <br />Check the Summary tab for this month's overview.
+    </div>
+  `;
+  el.querySelectorAll("[data-method]").forEach(b => b.addEventListener("click", () => { state.method = b.dataset.method; renderAdd(); }));
+  el.querySelectorAll("[data-category]").forEach(b => b.addEventListener("click", () => { state.category = b.dataset.category; renderAdd(); }));
+  document.getElementById("dateInput").addEventListener("keydown", () => {});
+  document.getElementById("noteInput").addEventListener("keydown", (e) => { if (e.key === "Enter") handleAdd(); });
+  document.getElementById("addBtn").addEventListener("click", handleAdd);
+}
+
+function computeStats(entries, mKey) {
+  const base = { cash: 0, joint: 0, personal: 0, credit: 0 };
+  const catMap = {}; CATEGORIES.forEach(c => catMap[c.id] = 0);
+  const list = entries.filter(e => monthKey(e.date) === mKey);
+  list.forEach(e => {
+    base[e.method] = (base[e.method]||0) + e.amount;
+    catMap[e.category] = (catMap[e.category]||0) + e.amount;
+  });
+  const grand = Object.values(base).reduce((a,b)=>a+b,0);
+  return { base, catMap, grand, count: list.length, list };
+}
+
+function availableMonths() {
+  const set = new Set(state.entries.map(e => monthKey(e.date)));
+  set.add(monthKey(todayStr()));
+  return Array.from(set).sort().reverse();
+}
+
+function renderSummary() {
+  const el = document.getElementById("page-summary");
+  if (state.loading) { el.innerHTML = `<div class="empty">Loading entries…</div>`; return; }
+
+  const months = availableMonths();
+  const thisMonth = monthKey(todayStr());
+  const stats = computeStats(state.entries, state.selectedMonth);
+  const sortedList = [...stats.list].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+  const catTotals = CATEGORIES.map(c => ({...c, total: stats.catMap[c.id]||0})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+
+  el.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <select class="pill ledger-font" id="monthSelect">
+        ${months.map(m => `<option value="${m}" ${m===state.selectedMonth?'selected':''}>${monthLabelOf(m)}${m===thisMonth?' (current)':''}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="totals-grid">
+      ${METHODS.map(m => `
+        <div class="tot-card">
+          <div class="tot-head">${icon(m.icon,13)}<span>${m.label}</span></div>
+          <div class="tot-val mono">${fmt(stats.base[m.id])}</div>
+        </div>`).join("")}
+    </div>
+
+    <div class="grand">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">
+          ${state.selectedMonth === thisMonth ? "Month-to-date total" : "Month total"}
+        </div>
+        <div class="ledger-font" style="font-size:15px; color:#C9A24B; margin-top:2px;">${stats.count} ${stats.count===1?'entry':'entries'}</div>
+      </div>
+      <div class="mono" style="font-size:28px; font-weight:600; color:#F5F1E6;">${fmt(stats.grand)}</div>
+    </div>
+
+    ${catTotals.length > 0 ? `
+    <div style="margin-bottom:20px;">
+      <div class="section-head">By category</div>
+      <div class="entry-list">
+        ${catTotals.map(c => `
+          <div class="cat-bar-row">
+            ${icon(c.icon,14)}
+            <div style="flex:1;">
+              <div style="display:flex; justify-content:space-between; font-size:13px; color:#F5F1E6;">
+                <span>${c.id}</span><span class="mono" style="font-weight:600;">${fmt(c.total)}</span>
+              </div>
+              <div class="bar-track"><div class="bar-fill" style="width:${stats.grand>0 ? (c.total/stats.grand*100) : 0}%"></div></div>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>` : ""}
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div class="section-head" style="margin-bottom:0;">${monthLabelOf(state.selectedMonth)}'s entries</div>
+    </div>
+    <div class="entry-list">
+      ${sortedList.length === 0 ? `<div class="empty">No entries for ${monthLabelOf(state.selectedMonth)}.</div>` :
+        sortedList.map(e => {
+          const cInfo = categoryInfo(e.category);
+          const mInfo = methodInfo(e.method);
+          const label = e.note ? `${e.category} · ${e.note}` : e.category;
+          return `
+            <div class="entry-row">
+              <div class="entry-icon">${icon(cInfo.icon,14)}</div>
+              <div class="entry-main">
+                <div class="entry-title">${label}</div>
+                <div class="entry-sub mono">${e.date} · ${mInfo.label}</div>
+              </div>
+              <div class="entry-amt mono">${fmt(e.amount)}</div>
+              <button class="del-btn" data-row="${e.sheetRow}">${icon("trash",14)}</button>
+            </div>`;
+        }).join("")}
+    </div>
+    <div class="foot-note">Reading and writing directly to your connected Google Sheet — refresh reloads the latest from everyone.</div>
+  `;
+  document.getElementById("monthSelect").addEventListener("change", (e) => { state.selectedMonth = e.target.value; renderSummary(); });
+  el.querySelectorAll("[data-row]").forEach(b => b.addEventListener("click", () => handleDelete(parseInt(b.dataset.row))));
+}
+
+function renderCompare() {
+  const el = document.getElementById("page-compare");
+  if (state.loading) { el.innerHTML = `<div class="empty">Loading entries…</div>`; return; }
+
+  const months = availableMonths();
+  if (!state.compareA) state.compareA = months[1] || months[0];
+  const statsA = computeStats(state.entries, state.compareA);
+  const statsB = computeStats(state.entries, state.compareB);
+  const maxVal = Math.max(1, ...METHODS.map(m => Math.max(statsA.base[m.id]||0, statsB.base[m.id]||0)), ...CATEGORIES.map(c => Math.max(statsA.catMap[c.id]||0, statsB.catMap[c.id]||0)));
+
+  function deltaBadge(a,b) {
+    const diff = b - a;
+    const flat = Math.abs(diff) < 0.005;
+    const up = diff > 0;
+    const pct = a>0 ? (diff/a*100) : (diff>0?100:0);
+    const color = flat ? "#6B7A93" : up ? "#D98686" : "#8FBF9F";
+    return `<span class="mono" style="color:${color}; font-weight:600; font-size:13px;">${flat?'—':(up?'+':'')+pct.toFixed(0)+'%'}</span>`;
+  }
+
+  function barRows(items, statsAObj, statsBObj, keyFn) {
+    return items.map(it => {
+      const a = keyFn(statsAObj, it.id) || 0;
+      const b = keyFn(statsBObj, it.id) || 0;
+      if (a === 0 && b === 0) return "";
+      return `
+        <div class="chart-row">
+          <div class="chart-label">${it.label || it.id}</div>
+          <div class="chart-bars">
+            <div style="display:flex; align-items:center;">
+              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(a/maxVal*100)}%; background:#5C7599;"></div></div>
+              <span class="chart-val mono">${fmt(a)}</span>
+            </div>
+            <div style="display:flex; align-items:center;">
+              <div class="chart-bar-track" style="flex:1;"><div class="chart-bar-fill" style="width:${(b/maxVal*100)}%; background:#C9A24B;"></div></div>
+              <span class="chart-val mono">${fmt(b)}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  const methodRows = barRows(METHODS, statsA.base, statsB.base, (obj, id) => obj[id]);
+  const catRows = barRows(CATEGORIES, statsA.catMap, statsB.catMap, (obj, id) => obj[id]);
+
+  el.innerHTML = `
+    <div class="compare-header">
+      <select class="pill ledger-font" id="compareASelect" style="flex:1;">
+        ${months.map(m => `<option value="${m}" ${m===state.compareA?'selected':''}>${monthLabelOf(m)}</option>`).join("")}
+      </select>
+      ${icon("swap",16)}
+      <select class="pill ledger-font" id="compareBSelect" style="flex:1;">
+        ${months.map(m => `<option value="${m}" ${m===state.compareB?'selected':''}>${monthLabelOf(m)}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="grand">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">${monthLabelOf(state.compareA)}</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:#F5F1E6; margin-top:4px;">${fmt(statsA.grand)}</div>
+      </div>
+      ${deltaBadge(statsA.grand, statsB.grand)}
+      <div style="text-align:right;">
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:#8A97AD; text-transform:uppercase;">${monthLabelOf(state.compareB)}</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:#F5F1E6; margin-top:4px;">${fmt(statsB.grand)}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="section-head">By payment method</div>
+      <div class="compare-chart">
+        <div class="legend"><div class="legend-dot"><span style="background:#5C7599;"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:#C9A24B;"></span>${monthLabelOf(state.compareB)}</div></div>
+        ${methodRows || `<div class="empty">No entries in either month.</div>`}
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="section-head">By category</div>
+      <div class="compare-chart">
+        <div class="legend"><div class="legend-dot"><span style="background:#5C7599;"></span>${monthLabelOf(state.compareA)}</div><div class="legend-dot"><span style="background:#C9A24B;"></span>${monthLabelOf(state.compareB)}</div></div>
+        ${catRows || `<div class="empty">No entries in either month.</div>`}
+      </div>
+    </div>
+    <div class="foot-note">Blue bars are ${monthLabelOf(state.compareA)}, gold bars are ${monthLabelOf(state.compareB)}.</div>
+  `;
+  document.getElementById("compareASelect").addEventListener("change", (e) => { state.compareA = e.target.value; renderCompare(); });
+  document.getElementById("compareBSelect").addEventListener("change", (e) => { state.compareB = e.target.value; renderCompare(); });
+}
+
+/* ---------- Init ---------- */
+document.querySelectorAll(".tab-btn").forEach(b => {
+  b.addEventListener("click", () => { state.page = b.dataset.page; render(); });
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  const { clientId, sheetId } = getSettings();
+  document.getElementById("clientIdInput").value = clientId;
+  document.getElementById("sheetIdInput").value = sheetId;
+  if (clientId && sheetId) setStatus("Saved — click Connect");
+  state.loading = false;
+  render();
+  // Wait for GIS script to load before initializing token client
+  const waitForGis = setInterval(() => {
+    if (window.google && google.accounts) {
+      clearInterval(waitForGis);
+      initAuth();
+    }
+  }, 200);
+});
+</script>
+</body>
+</html>
