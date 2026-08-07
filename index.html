@@ -141,6 +141,10 @@
         <input class="input" id="sheetIdInput" placeholder="from the sheet's URL" />
       </div>
     </div>
+    <label class="label">Tab name <span class="hint">(the sheet tab at the bottom, default "Sheet1")</span></label>
+    <div style="margin-bottom:10px;">
+      <input class="input" id="tabNameInput" placeholder="Sheet1" />
+    </div>
     <div style="display:flex; gap:8px;">
       <button class="btn-primary" id="saveSettingsBtn" style="width:auto; padding:9px 16px;">Save</button>
       <button class="btn-primary" id="connectBtn" style="width:auto; padding:9px 16px; background:#5C7599; color:#F5F1E6;">Connect Google Account</button>
@@ -200,7 +204,9 @@ const CATEGORIES = [
   { id: "Repayments", icon: "refresh" },
   { id: "Others", icon: "more" },
 ];
-const SHEET_RANGE = "Sheet1!A:F"; // Date, Category, Remarks, Method, Amount, RowId(timestamp)
+const SHEET_RANGE_SUFFIX = "A:F"; // Date, Category, Remarks, Method, Amount, RowId(timestamp)
+function tabName() { return localStorage.getItem("el_tab_name") || "Sheet1"; }
+function sheetRange(suffix) { return tabName() + "!" + suffix; }
 const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
 const ICONS = {
@@ -309,8 +315,10 @@ async function attemptSilentConnect() {
 document.getElementById("saveSettingsBtn").addEventListener("click", () => {
   const clientId = document.getElementById("clientIdInput").value.trim();
   const sheetId = document.getElementById("sheetIdInput").value.trim();
+  const tabNameVal = document.getElementById("tabNameInput").value.trim() || "Sheet1";
   localStorage.setItem("el_client_id", clientId);
   localStorage.setItem("el_sheet_id", sheetId);
+  localStorage.setItem("el_tab_name", tabNameVal);
   initAuth();
   setStatus(clientId && sheetId ? "Saved — click Connect" : "Not connected");
 });
@@ -357,10 +365,11 @@ async function sheetsFetch(path, opts) {
 
 async function ensureHeaderAndGid() {
   const meta = await sheetsFetch("?fields=sheets.properties");
-  state.sheetGid = meta.sheets[0].properties.sheetId;
-  const vals = await sheetsFetch("/values/" + encodeURIComponent(SHEET_RANGE));
+  const sheetProps = meta.sheets.find(s => s.properties.title === tabName()) || meta.sheets[0];
+  state.sheetGid = sheetProps.properties.sheetId;
+  const vals = await sheetsFetch("/values/" + encodeURIComponent(sheetRange(SHEET_RANGE_SUFFIX)));
   if (!vals.values || vals.values.length === 0) {
-    await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A1") + ":append?valueInputOption=USER_ENTERED", {
+    await sheetsFetch("/values/" + encodeURIComponent(sheetRange("A1")) + ":append?valueInputOption=USER_ENTERED", {
       method: "POST",
       body: JSON.stringify({ values: [["Date","Category","Remarks","Method","Amount","RowId"]] }),
     });
@@ -372,7 +381,7 @@ async function loadEntries() {
   render();
   try {
     await ensureHeaderAndGid();
-    const vals = await sheetsFetch("/values/" + encodeURIComponent(SHEET_RANGE));
+    const vals = await sheetsFetch("/values/" + encodeURIComponent(sheetRange(SHEET_RANGE_SUFFIX)));
     const rows = (vals.values || []).slice(1); // skip header
     state.entries = rows.map((r, i) => ({
       sheetRow: i + 2, // 1-indexed, +1 for header
@@ -394,7 +403,7 @@ async function loadEntries() {
 
 async function appendEntry(entry) {
   const row = [entry.date, entry.category, entry.note, methodInfo(entry.method).label, entry.amount.toFixed(2), entry.rowId];
-  await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A:F") + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
+  await sheetsFetch("/values/" + encodeURIComponent(sheetRange(SHEET_RANGE_SUFFIX)) + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
     method: "POST",
     body: JSON.stringify({ values: [row] }),
   });
@@ -405,7 +414,7 @@ async function appendRows(rows) {
   const chunkSize = 400;
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A:F") + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
+    await sheetsFetch("/values/" + encodeURIComponent(sheetRange(SHEET_RANGE_SUFFIX)) + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
       method: "POST",
       body: JSON.stringify({ values: chunk }),
     });
@@ -965,6 +974,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const { clientId, sheetId } = getSettings();
   document.getElementById("clientIdInput").value = clientId;
   document.getElementById("sheetIdInput").value = sheetId;
+  document.getElementById("tabNameInput").value = tabName();
   if (clientId && sheetId) setStatus("Connecting…");
   state.loading = false;
   render();
