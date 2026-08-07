@@ -945,7 +945,7 @@ function renderSummary() {
     ${catTotals.length > 0 ? `
     <div style="margin-bottom:20px;">
       <div class="section-head">By category <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter, pick multiple)</span></div>
-      <div class="cat-grid">
+      <div class="totals-grid" style="margin-bottom:0;">
         ${catTotals.map(c => {
           const active = fc.has(c.id);
           return `
