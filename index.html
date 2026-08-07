@@ -149,6 +149,26 @@
     </div>
   </div>
 
+  <div class="settings-panel" id="importPanel" style="display:none;">
+    <div class="section-head" style="margin-bottom:12px;">Import from another sheet</div>
+    <div class="row2">
+      <div>
+        <label class="label">Source Spreadsheet ID</label>
+        <input class="input" id="importSheetIdInput" placeholder="from the other sheet's URL" />
+      </div>
+      <div>
+        <label class="label">Source Sheet / Range <span class="hint">(e.g. "Form Responses 1")</span></label>
+        <input class="input" id="importRangeInput" placeholder="Form Responses 1" />
+      </div>
+    </div>
+    <button class="btn-primary" id="loadImportBtn" style="width:auto; padding:9px 16px; margin-bottom:12px;">Load columns</button>
+    <div id="importMappingArea"></div>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <button class="link-btn" id="toggleImportBtn">+ Import from another Google Sheet</button>
+  </div>
+
   <div class="tabs">
     <button class="tab-btn active" data-page="add">Add Expense</button>
     <button class="tab-btn" data-page="summary">Summary (MTD)</button>
@@ -253,13 +273,34 @@ function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: clientId,
     scope: SCOPES,
-    callback: async (resp) => {
-      if (resp.error) { setStatus("Connection failed", "off"); return; }
-      state.accessToken = resp.access_token;
-      setStatus("Connected", "on");
-      await loadEntries();
-    },
+    callback: () => {}, // overridden per-request by requestToken()
   });
+  attemptSilentConnect();
+}
+
+function requestToken(promptMode) {
+  return new Promise((resolve, reject) => {
+    if (!tokenClient) { reject(new Error("Google sign-in not ready yet")); return; }
+    tokenClient.callback = (resp) => {
+      if (resp.error) { reject(resp); return; }
+      state.accessToken = resp.access_token;
+      resolve(resp.access_token);
+    };
+    tokenClient.requestAccessToken(promptMode === undefined ? {} : { prompt: promptMode });
+  });
+}
+
+async function attemptSilentConnect() {
+  const { sheetId } = getSettings();
+  if (!sheetId) return;
+  setStatus("Connecting…");
+  try {
+    await requestToken(""); // no UI shown; succeeds only if already granted + still signed in
+    setStatus("Connected", "on");
+    await loadEntries();
+  } catch (e) {
+    setStatus("Not connected — tap Connect");
+  }
 }
 
 document.getElementById("saveSettingsBtn").addEventListener("click", () => {
@@ -271,25 +312,44 @@ document.getElementById("saveSettingsBtn").addEventListener("click", () => {
   setStatus(clientId && sheetId ? "Saved — click Connect" : "Not connected");
 });
 
-document.getElementById("connectBtn").addEventListener("click", () => {
+document.getElementById("connectBtn").addEventListener("click", async () => {
   const { clientId, sheetId } = getSettings();
   if (!clientId || !sheetId) { alert("Enter your Client ID and Spreadsheet ID first, then Save."); return; }
   if (!tokenClient) initAuth();
-  if (tokenClient) tokenClient.requestAccessToken();
+  setStatus("Connecting…");
+  try {
+    await requestToken(); // interactive — shows Google's sign-in/consent if needed
+    setStatus("Connected", "on");
+    await loadEntries();
+  } catch (e) {
+    setStatus("Connection failed", "off");
+  }
 });
+
+async function authFetch(url, opts) {
+  opts = opts || {};
+  const doFetch = () => fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({ "Authorization": "Bearer " + state.accessToken }, opts.headers || {}),
+  }));
+  let res = await doFetch();
+  if (res.status === 401) {
+    // token expired mid-session — try a silent refresh once, then retry the request
+    try { await requestToken(""); res = await doFetch(); } catch (e) { /* fall through, will throw below */ }
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error("API error " + res.status + ": " + body);
+  }
+  return res.json();
+}
 
 async function sheetsFetch(path, opts) {
   opts = opts || {};
   const { sheetId } = getSettings();
   const url = "https://sheets.googleapis.com/v4/spreadsheets/" + sheetId + path;
-  const res = await fetch(url, Object.assign({}, opts, {
-    headers: Object.assign({ "Authorization": "Bearer " + state.accessToken, "Content-Type": "application/json" }, opts.headers || {}),
+  return authFetch(url, Object.assign({}, opts, {
+    headers: Object.assign({ "Content-Type": "application/json" }, opts.headers || {}),
   }));
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error("Sheets API error " + res.status + ": " + body);
-  }
-  return res.json();
 }
 
 async function ensureHeaderAndGid() {
@@ -337,6 +397,18 @@ async function appendEntry(entry) {
   });
 }
 
+async function appendRows(rows) {
+  // rows: array of [date, category, note, methodLabel, amountStr, rowId]
+  const chunkSize = 400;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    await sheetsFetch("/values/" + encodeURIComponent("Sheet1!A:F") + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
+      method: "POST",
+      body: JSON.stringify({ values: chunk }),
+    });
+  }
+}
+
 async function deleteEntryRow(sheetRow) {
   await sheetsFetch(":batchUpdate", {
     method: "POST",
@@ -348,6 +420,214 @@ async function deleteEntryRow(sheetRow) {
       }]
     }),
   });
+}
+
+/* ---------- Import from another sheet ---------- */
+async function fetchSourceValues(spreadsheetId, range) {
+  const url = "https://sheets.googleapis.com/v4/spreadsheets/" + spreadsheetId + "/values/" + encodeURIComponent(range);
+  return authFetch(url);
+}
+
+function guessMethodMatch(raw) {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("joint")) return "joint";
+  if (s.includes("credit") || s.includes("card")) return "credit";
+  if (s.includes("personal")) return "personal";
+  if (s.includes("cash")) return "cash";
+  return "";
+}
+
+function guessCategoryMatch(raw) {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("grocer")) return "Groceries";
+  if (s.includes("dine") || s.includes("takeaway") || s.includes("food") || s.includes("restaurant")) return "Dine Out / Takeaway";
+  if (s.includes("home")) return "Home Expenses";
+  if (s.includes("personal")) return "Personal Expenses";
+  if (s.includes("insur")) return "Insurance";
+  if (s.includes("subscri") || s.includes("bill")) return "Subscriptions and Bills";
+  if (s.includes("transport") || s.includes("grab") || s.includes("taxi") || s.includes("petrol") || s.includes("mrt")) return "Transportation";
+  if (s.includes("repay") || s.includes("loan")) return "Repayments";
+  return "Others";
+}
+
+function parseFlexibleDate(raw) {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  // try DD/MM/YYYY fallback
+  const m = String(raw).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (m) {
+    let [_, a, b, y] = m;
+    if (y.length === 2) y = "20" + y;
+    const d2 = new Date(Number(y), Number(a) - 1, Number(b));
+    if (!isNaN(d2.getTime())) return d2.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
+let importData = { headers: [], rows: [], mapping: {}, methodMap: {} };
+
+document.getElementById("toggleImportBtn").addEventListener("click", () => {
+  const panel = document.getElementById("importPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+});
+
+document.getElementById("loadImportBtn").addEventListener("click", async () => {
+  const area = document.getElementById("importMappingArea");
+  const sourceId = document.getElementById("importSheetIdInput").value.trim();
+  const range = document.getElementById("importRangeInput").value.trim() || "A:Z";
+  if (!state.accessToken) { area.innerHTML = `<div class="err">Connect your Google account first (above).</div>`; return; }
+  if (!sourceId) { area.innerHTML = `<div class="err">Enter the source Spreadsheet ID.</div>`; return; }
+  area.innerHTML = `<div class="empty" style="padding:12px;">Loading columns…</div>`;
+  try {
+    const vals = await fetchSourceValues(sourceId, range);
+    const all = vals.values || [];
+    if (all.length < 2) { area.innerHTML = `<div class="err">No data rows found in that range.</div>`; return; }
+    importData.sourceId = sourceId;
+    importData.headers = all[0];
+    importData.rows = all.slice(1);
+    importData.mapping = { date: "", category: "", amount: "", method: "", remarks: "" };
+    importData.methodMap = {};
+    renderImportMapping();
+  } catch (e) {
+    console.error(e);
+    area.innerHTML = `<div class="err">Couldn't load that sheet. Check the Spreadsheet ID and range, and that your Google account has access to it.</div>`;
+  }
+});
+
+function renderImportMapping() {
+  const area = document.getElementById("importMappingArea");
+  const opts = (selected) => `<option value="">— none —</option>` + importData.headers.map((h, i) =>
+    `<option value="${i}" ${String(i)===String(selected)?'selected':''}>${h}</option>`).join("");
+
+  area.innerHTML = `
+    <div class="foot-note" style="text-align:left; margin-top:0; margin-bottom:12px;">Found ${importData.rows.length} rows. Match your columns below.</div>
+    <div class="row2">
+      <div><label class="label">Date column</label><select class="input" id="mapDate">${opts()}</select></div>
+      <div><label class="label">Category column</label><select class="input" id="mapCategory">${opts()}</select></div>
+    </div>
+    <div class="row2">
+      <div><label class="label">Amount column</label><select class="input" id="mapAmount">${opts()}</select></div>
+      <div><label class="label">Paid by column <span class="hint">(optional)</span></label><select class="input" id="mapMethod">${opts()}</select></div>
+    </div>
+    <label class="label">Remarks column <span class="hint">(optional)</span></label>
+    <div style="margin-bottom:12px;"><select class="input" id="mapRemarks">${opts()}</select></div>
+    <div id="categoryMapArea"></div>
+    <div id="methodMapArea"></div>
+    <button class="btn-primary" id="runImportBtn" style="width:auto; padding:9px 16px; margin-top:8px;">Import ${importData.rows.length} rows</button>
+    <div class="err" id="importError"></div>
+    <div class="ok" id="importOk"></div>
+  `;
+  document.getElementById("mapCategory").addEventListener("change", renderCategoryMapping);
+  document.getElementById("mapMethod").addEventListener("change", renderMethodMapping);
+  document.getElementById("runImportBtn").addEventListener("click", runImport);
+}
+
+function renderCategoryMapping() {
+  const idx = document.getElementById("mapCategory").value;
+  const area = document.getElementById("categoryMapArea");
+  if (idx === "") { area.innerHTML = ""; return; }
+  const uniqueVals = Array.from(new Set(importData.rows.map(r => (r[idx]||"").trim()).filter(Boolean)));
+  area.innerHTML = `
+    <label class="label">Match each expense type to one of your 9 categories</label>
+    <div style="margin-bottom:12px;">
+      ${uniqueVals.map(v => {
+        const guess = guessCategoryMatch(v);
+        return `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          <div style="flex:1; font-size:13px; color:#E9E4D8;">${v}</div>
+          <select class="input categoryMapSelect" data-raw="${v.replace(/"/g,'&quot;')}" style="width:auto;">
+            ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===guess?'selected':''}>${c.id}</option>`).join("")}
+          </select>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderMethodMapping() {
+  const idx = document.getElementById("mapMethod").value;
+  const area = document.getElementById("methodMapArea");
+  if (idx === "") { area.innerHTML = ""; return; }
+  const uniqueVals = Array.from(new Set(importData.rows.map(r => (r[idx]||"").trim()).filter(Boolean)));
+  area.innerHTML = `
+    <label class="label">Match each value to a payment method</label>
+    <div style="margin-bottom:12px;">
+      ${uniqueVals.map(v => {
+        const guess = guessMethodMatch(v);
+        return `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          <div style="flex:1; font-size:13px; color:#E9E4D8;">${v}</div>
+          <select class="input methodMapSelect" data-raw="${v.replace(/"/g,'&quot;')}" style="width:auto;">
+            ${METHODS.map(m => `<option value="${m.id}" ${m.id===guess?'selected':''}>${m.label}</option>`).join("")}
+          </select>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+async function runImport() {
+  const errEl = document.getElementById("importError");
+  const okEl = document.getElementById("importOk");
+  const btn = document.getElementById("runImportBtn");
+  errEl.textContent = ""; okEl.textContent = "";
+
+  const dateIdx = document.getElementById("mapDate").value;
+  const catIdx = document.getElementById("mapCategory").value;
+  const amtIdx = document.getElementById("mapAmount").value;
+  const methodIdx = document.getElementById("mapMethod").value;
+  const remarksIdx = document.getElementById("mapRemarks").value;
+
+  if (dateIdx === "" || catIdx === "" || amtIdx === "") {
+    errEl.textContent = "Date, Category, and Amount columns are required.";
+    return;
+  }
+
+  const methodSelects = document.querySelectorAll(".methodMapSelect");
+  const methodMap = {};
+  methodSelects.forEach(sel => { methodMap[sel.dataset.raw] = sel.value; });
+
+  const categorySelects = document.querySelectorAll(".categoryMapSelect");
+  const categoryMap = {};
+  categorySelects.forEach(sel => { categoryMap[sel.dataset.raw] = sel.value; });
+
+  btn.disabled = true;
+  btn.textContent = "Importing…";
+
+  let skipped = 0;
+  const rowsOut = [];
+  importData.rows.forEach((r, i) => {
+    const rawDate = r[dateIdx];
+    const rawCat = (r[catIdx] || "").trim();
+    const finalCat = categoryMap[rawCat] || rawCat;
+    const rawAmt = (r[amtIdx] || "").toString().replace(/[^0-9.\-]/g, "");
+    const amt = parseFloat(rawAmt);
+    const date = parseFlexibleDate(rawDate);
+    if (!date || !finalCat || !amt || amt <= 0) { skipped++; return; }
+    const rawMethod = methodIdx !== "" ? (r[methodIdx] || "").trim() : "";
+    const methodId = methodMap[rawMethod] || "cash";
+    const remarks = remarksIdx !== "" ? (r[remarksIdx] || "").trim() : "";
+    rowsOut.push([date, finalCat, remarks, methodInfo(methodId).label, amt.toFixed(2), "import-" + Date.now() + "-" + i]);
+  });
+
+  if (rowsOut.length === 0) {
+    errEl.textContent = "Nothing valid to import — check your column mapping.";
+    btn.disabled = false;
+    btn.textContent = "Import " + importData.rows.length + " rows";
+    return;
+  }
+
+  try {
+    await appendRows(rowsOut);
+    okEl.textContent = `Imported ${rowsOut.length} rows` + (skipped ? ` (skipped ${skipped} with missing/invalid data)` : "") + ". Reloading…";
+    await loadEntries();
+    okEl.textContent = `Done — ${rowsOut.length} entries imported and synced.`;
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = "Import failed partway through. Check your connection and try again — already-imported rows are safe, re-running may create duplicates for those.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Import " + importData.rows.length + " rows";
+  }
 }
 
 /* ---------- Actions ---------- */
@@ -384,7 +664,7 @@ async function handleAdd() {
     await loadEntries();
   } catch (e) {
     console.error(e);
-    errEl.textContent = "Couldn't save to Google Sheets. Check your connection and try again.";
+    errEl.textContent = "Couldn't save to Google Sheets: " + (e && e.message ? e.message : "unknown error") + ". Try Connect again above.";
   } finally {
     btn.disabled = false;
   }
@@ -462,7 +742,7 @@ function renderAdd() {
 
 function computeStats(entries, mKey) {
   const base = { cash: 0, joint: 0, personal: 0, credit: 0 };
-  const catMap = {}; CATEGORIES.forEach(c => catMap[c.id] = 0);
+  const catMap = {};
   const list = entries.filter(e => monthKey(e.date) === mKey);
   list.forEach(e => {
     base[e.method] = (base[e.method]||0) + e.amount;
@@ -486,7 +766,7 @@ function renderSummary() {
   const thisMonth = monthKey(todayStr());
   const stats = computeStats(state.entries, state.selectedMonth);
   const sortedList = [...stats.list].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
-  const catTotals = CATEGORIES.map(c => ({...c, total: stats.catMap[c.id]||0})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+  const catTotals = Object.keys(stats.catMap).map(id => ({ id, icon: categoryInfo(id).icon, total: stats.catMap[id] })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
 
   el.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
@@ -565,7 +845,10 @@ function renderCompare() {
   if (!state.compareA) state.compareA = months[1] || months[0];
   const statsA = computeStats(state.entries, state.compareA);
   const statsB = computeStats(state.entries, state.compareB);
-  const maxVal = Math.max(1, ...METHODS.map(m => Math.max(statsA.base[m.id]||0, statsB.base[m.id]||0)), ...CATEGORIES.map(c => Math.max(statsA.catMap[c.id]||0, statsB.catMap[c.id]||0)));
+  const allCategories = Array.from(new Set([...Object.keys(statsA.catMap), ...Object.keys(statsB.catMap)]))
+    .map(id => ({ id, label: id }))
+    .sort((x, y) => ((statsA.catMap[y.id]||0)+(statsB.catMap[y.id]||0)) - ((statsA.catMap[x.id]||0)+(statsB.catMap[x.id]||0)));
+  const maxVal = Math.max(1, ...METHODS.map(m => Math.max(statsA.base[m.id]||0, statsB.base[m.id]||0)), ...allCategories.map(c => Math.max(statsA.catMap[c.id]||0, statsB.catMap[c.id]||0)));
 
   function deltaBadge(a,b) {
     const diff = b - a;
@@ -599,7 +882,7 @@ function renderCompare() {
   }
 
   const methodRows = barRows(METHODS, statsA.base, statsB.base, (obj, id) => obj[id]);
-  const catRows = barRows(CATEGORIES, statsA.catMap, statsB.catMap, (obj, id) => obj[id]);
+  const catRows = barRows(allCategories, statsA.catMap, statsB.catMap, (obj, id) => obj[id]);
 
   el.innerHTML = `
     <div class="compare-header">
@@ -654,7 +937,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const { clientId, sheetId } = getSettings();
   document.getElementById("clientIdInput").value = clientId;
   document.getElementById("sheetIdInput").value = sheetId;
-  if (clientId && sheetId) setStatus("Saved — click Connect");
+  if (clientId && sheetId) setStatus("Connecting…");
   state.loading = false;
   render();
   // Wait for GIS script to load before initializing token client
