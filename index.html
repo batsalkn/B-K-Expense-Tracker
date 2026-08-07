@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Expense Ledger</title>
+<title>B&K Expenses Tracker</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -99,7 +99,10 @@
   .status-pill {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #8A97AD;
     background: #0F1B2D; border: 1px solid #2C3E5E; border-radius: 999px; padding: 5px 12px;
+    transition: all 0.2s ease;
   }
+  .status-pill.on { color: #8FBF9F; background: rgba(143,191,159,0.12); border-color: #3E6E52; }
+  .status-pill.off { color: #D98686; background: rgba(217,134,134,0.12); border-color: #6E3E3E; }
   .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #6B7A93; }
   .status-dot.on { background: #8FBF9F; }
   .status-dot.off { background: #D98686; }
@@ -120,15 +123,13 @@
 <body>
 <div class="wrap">
   <div style="margin-bottom: 22px;">
-    <div class="eyebrow">Ledger</div>
-    <h1>Expense Ledger</h1>
-    <div class="sub">Log what was paid, how, and why — synced live to Google Sheets.</div>
+    <h1>B&amp;K Expenses Tracker</h1>
   </div>
 
   <div class="settings-panel" id="settingsPanel">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
       <div class="section-head" style="margin-bottom:0;">Google Sheets connection</div>
-      <span class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></span>
+      <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></span>
     </div>
     <div class="row2">
       <div>
@@ -265,6 +266,8 @@ function setStatus(text, kind) {
   document.getElementById("statusText").textContent = text;
   const dot = document.getElementById("statusDot");
   dot.className = "status-dot" + (kind ? " " + kind : "");
+  const pill = document.getElementById("statusPill");
+  pill.className = "status-pill" + (kind ? " " + kind : "");
 }
 
 function initAuth() {
@@ -724,7 +727,10 @@ function renderAdd() {
         <input class="input" id="noteInput" type="text" placeholder="e.g. NTUC Bishan, Grab to airport, John's birthday gift" />
       </div>
 
-      <button class="btn-primary" id="addBtn">${icon("plus",16)} Add entry</button>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="btn-primary" id="addBtn" style="flex:1;">${icon("plus",16)} Add entry</button>
+        <span id="readyIndicator" style="width:32px; height:32px; border-radius:50%; background:#0F1B2D; border:1px solid #2C3E5E; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: all 0.2s ease;" title="Turns green once amount and category are filled in"></span>
+      </div>
       <div class="err" id="addError"></div>
       <div class="ok" id="addOk"></div>
     </div>
@@ -733,8 +739,30 @@ function renderAdd() {
       <br />Check the Summary tab for this month's overview.
     </div>
   `;
-  el.querySelectorAll("[data-method]").forEach(b => b.addEventListener("click", () => { state.method = b.dataset.method; renderAdd(); }));
-  el.querySelectorAll("[data-category]").forEach(b => b.addEventListener("click", () => { state.category = b.dataset.category; renderAdd(); }));
+  function updateReady() {
+    const amt = parseFloat(document.getElementById("amountInput").value);
+    const ready = amt > 0 && !!state.category;
+    const ind = document.getElementById("readyIndicator");
+    if (ready) {
+      ind.style.background = "rgba(143,191,159,0.15)";
+      ind.style.borderColor = "#3E6E52";
+      ind.innerHTML = icon("check", 15).replace('class="icon"', 'class="icon" style="stroke:#8FBF9F;"');
+    } else {
+      ind.style.background = "#0F1B2D";
+      ind.style.borderColor = "#2C3E5E";
+      ind.innerHTML = "";
+    }
+  }
+  el.querySelectorAll("[data-method]").forEach(b => b.addEventListener("click", () => {
+    state.method = b.dataset.method;
+    el.querySelectorAll("[data-method]").forEach(x => x.classList.toggle("active", x.dataset.method === state.method));
+  }));
+  el.querySelectorAll("[data-category]").forEach(b => b.addEventListener("click", () => {
+    state.category = b.dataset.category;
+    el.querySelectorAll("[data-category]").forEach(x => x.classList.toggle("active", x.dataset.category === state.category));
+    updateReady();
+  }));
+  document.getElementById("amountInput").addEventListener("input", updateReady);
   document.getElementById("dateInput").addEventListener("keydown", () => {});
   document.getElementById("noteInput").addEventListener("keydown", (e) => { if (e.key === "Enter") handleAdd(); });
   document.getElementById("addBtn").addEventListener("click", handleAdd);
