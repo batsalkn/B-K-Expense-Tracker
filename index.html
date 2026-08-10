@@ -346,6 +346,9 @@ let state = {
   summaryFilter: null, // legacy, unused
   filterMethods: new Set(),
   filterCategories: new Set(),
+  summaryMode: "month", // "month" | "range"
+  rangeStart: "",
+  rangeEnd: "",
 };
 
 /* ---------- Google auth + Sheets API ---------- */
@@ -875,16 +878,29 @@ function renderAdd() {
   document.getElementById("addBtn").addEventListener("click", handleAdd);
 }
 
-function computeStats(entries, mKey) {
+function aggregateEntries(list) {
   const base = { cash: 0, joint: 0, personal: 0, credit: 0 };
   const catMap = {};
-  const list = entries.filter(e => monthKey(e.date) === mKey);
   list.forEach(e => {
     base[e.method] = (base[e.method]||0) + e.amount;
     catMap[e.category] = (catMap[e.category]||0) + e.amount;
   });
   const grand = Object.values(base).reduce((a,b)=>a+b,0);
   return { base, catMap, grand, count: list.length, list };
+}
+
+function computeStats(entries, mKey) {
+  return aggregateEntries(entries.filter(e => monthKey(e.date) === mKey));
+}
+
+function computeStatsRange(entries, start, end) {
+  return aggregateEntries(entries.filter(e => e.date && (!start || e.date >= start) && (!end || e.date <= end)));
+}
+
+function daysAgoStr(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 function availableMonths() {
@@ -899,7 +915,15 @@ function renderSummary() {
 
   const months = availableMonths();
   const thisMonth = monthKey(todayStr());
-  const stats = computeStats(state.entries, state.selectedMonth);
+  const isRange = state.summaryMode === "range";
+  if (isRange && !state.rangeStart && !state.rangeEnd) {
+    state.rangeEnd = todayStr();
+    state.rangeStart = daysAgoStr(6); // default: last 7 days
+  }
+  const stats = isRange ? computeStatsRange(state.entries, state.rangeStart, state.rangeEnd) : computeStats(state.entries, state.selectedMonth);
+  const periodLabel = isRange
+    ? (state.rangeStart && state.rangeEnd ? `${state.rangeStart} to ${state.rangeEnd}` : "selected range")
+    : monthLabelOf(state.selectedMonth);
   const sortedList = [...stats.list].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
   const catTotals = Object.keys(stats.catMap).map(id => ({ id, icon: categoryInfo(id).icon, total: stats.catMap[id] })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
 
@@ -914,11 +938,33 @@ function renderSummary() {
   ];
 
   el.innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="tab-btn ${!isRange?'active':''}" id="modeMonthBtn" style="padding:7px 14px; font-size:12px;">By month</button>
+      <button class="tab-btn ${isRange?'active':''}" id="modeRangeBtn" style="padding:7px 14px; font-size:12px;">Date range</button>
+    </div>
+
+    ${!isRange ? `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <select class="pill ledger-font" id="monthSelect">
         ${months.map(m => `<option value="${m}" ${m===state.selectedMonth?'selected':''}>${monthLabelOf(m)}${m===thisMonth?' (current)':''}</option>`).join("")}
       </select>
+    </div>` : `
+    <div class="row2" style="margin-bottom:14px;">
+      <div>
+        <label class="label">From</label>
+        <input class="input mono" id="rangeStartInput" type="date" value="${state.rangeStart}" />
+      </div>
+      <div>
+        <label class="label">To</label>
+        <input class="input mono" id="rangeEndInput" type="date" value="${state.rangeEnd}" />
+      </div>
     </div>
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+      <button class="filter-chip" data-quick-range="6">Last 7 days</button>
+      <button class="filter-chip" data-quick-range="13">Last 14 days</button>
+      <button class="filter-chip" data-quick-range="29">Last 30 days</button>
+    </div>
+    `}
 
     <div class="section-head">Paid by <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap to filter, pick multiple)</span></div>
     <div class="totals-grid" style="margin-bottom:20px;">
@@ -935,7 +981,7 @@ function renderSummary() {
     <div class="grand">
       <div>
         <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">
-          ${state.selectedMonth === thisMonth ? "Month-to-date total" : "Month total"}
+          ${isRange ? "Range total" : (state.selectedMonth === thisMonth ? "Month-to-date total" : "Month total")}
         </div>
         <div class="ledger-font" style="font-size:15px; color:var(--accent); margin-top:2px;">${stats.count} ${stats.count===1?'entry':'entries'}</div>
       </div>
@@ -958,14 +1004,14 @@ function renderSummary() {
     </div>` : ""}
 
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-      <div class="section-head" style="margin-bottom:0;">${monthLabelOf(state.selectedMonth)}'s entries</div>
+      <div class="section-head" style="margin-bottom:0;">${isRange ? "Entries in range" : `${periodLabel}'s entries`}</div>
       ${hasFilter ? `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         ${filterChips.map(f => `<button class="filter-chip" data-clear-kind="${f.kind}" data-clear-value="${f.value.replace(/"/g,'&quot;')}">${f.label} ${icon("close",10)}</button>`).join("")}
         <button class="link-btn" id="clearFilterBtn">Clear all</button>
       </div>` : ""}
     </div>
     <div class="entry-list">
-      ${filteredList.length === 0 ? `<div class="empty">${hasFilter ? `No matching entries for ${monthLabelOf(state.selectedMonth)}.` : `No entries for ${monthLabelOf(state.selectedMonth)}.`}</div>` :
+      ${filteredList.length === 0 ? `<div class="empty">${hasFilter ? `No matching entries for ${periodLabel}.` : `No entries for ${periodLabel}.`}</div>` :
         filteredList.map(e => {
           const cInfo = categoryInfo(e.category);
           const mInfo = methodInfo(e.method);
@@ -984,7 +1030,20 @@ function renderSummary() {
     </div>
     <div class="foot-note">Reading and writing directly to your connected Google Sheet — refresh reloads the latest from everyone.</div>
   `;
-  document.getElementById("monthSelect").addEventListener("change", (e) => { state.selectedMonth = e.target.value; renderSummary(); });
+  document.getElementById("modeMonthBtn").addEventListener("click", () => { state.summaryMode = "month"; renderSummary(); });
+  document.getElementById("modeRangeBtn").addEventListener("click", () => { state.summaryMode = "range"; renderSummary(); });
+  if (!isRange) {
+    document.getElementById("monthSelect").addEventListener("change", (e) => { state.selectedMonth = e.target.value; renderSummary(); });
+  } else {
+    document.getElementById("rangeStartInput").addEventListener("change", (e) => { state.rangeStart = e.target.value; renderSummary(); });
+    document.getElementById("rangeEndInput").addEventListener("change", (e) => { state.rangeEnd = e.target.value; renderSummary(); });
+    el.querySelectorAll("[data-quick-range]").forEach(b => b.addEventListener("click", () => {
+      const n = parseInt(b.dataset.quickRange);
+      state.rangeEnd = todayStr();
+      state.rangeStart = daysAgoStr(n);
+      renderSummary();
+    }));
+  }
   el.querySelectorAll("[data-row]").forEach(b => b.addEventListener("click", () => handleDelete(parseInt(b.dataset.row))));
   el.querySelectorAll("[data-filter-method]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.filterMethod;
