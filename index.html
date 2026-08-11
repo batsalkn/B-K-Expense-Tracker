@@ -264,11 +264,13 @@
     <button class="tab-btn active" data-page="add">Add Expense</button>
     <button class="tab-btn" data-page="summary">Summary (MTD)</button>
     <button class="tab-btn" data-page="compare">Compare</button>
+    <button class="tab-btn" data-page="budget">Budget</button>
   </div>
 
   <div id="page-add"></div>
   <div id="page-summary" style="display:none;"></div>
   <div id="page-compare" style="display:none;"></div>
+  <div id="page-budget" style="display:none;"></div>
 </div>
 
 <script>
@@ -349,6 +351,8 @@ let state = {
   summaryMode: "month", // "month" | "range"
   rangeStart: "",
   rangeEnd: "",
+  budgets: [],
+  budgetMonth: monthKey(todayStr()),
 };
 
 /* ---------- Google auth + Sheets API ---------- */
@@ -493,12 +497,73 @@ async function loadEntries() {
       amount: parseFloat(r[4]) || 0,
       rowId: r[5] || "",
     }));
+    await loadBudgets();
   } catch (e) {
     console.error(e);
     setStatus("Sync error", "off");
   } finally {
     state.loading = false;
     render();
+  }
+}
+
+const BUDGETS_TAB = "Budgets";
+
+async function ensureBudgetsSheet() {
+  const meta = await sheetsFetch("?fields=sheets.properties");
+  const exists = meta.sheets.some(s => s.properties.title === BUDGETS_TAB);
+  if (!exists) {
+    await sheetsFetch(":batchUpdate", {
+      method: "POST",
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: BUDGETS_TAB } } }] }),
+    });
+    await sheetsFetch("/values/" + encodeURIComponent(BUDGETS_TAB + "!A1") + ":append?valueInputOption=USER_ENTERED", {
+      method: "POST",
+      body: JSON.stringify({ values: [["Month", "Category", "Amount"]] }),
+    });
+  }
+}
+
+async function loadBudgets() {
+  try {
+    await ensureBudgetsSheet();
+    const vals = await sheetsFetch("/values/" + encodeURIComponent(BUDGETS_TAB + "!A:C"));
+    const rows = (vals.values || []).slice(1);
+    state.budgets = rows.map((r, i) => ({
+      sheetRow: i + 2,
+      month: r[0] || "",
+      category: r[1] || "",
+      amount: parseFloat(r[2]) || 0,
+    }));
+  } catch (e) {
+    console.error("Budget load failed", e);
+  }
+}
+
+function getBudget(month, category) {
+  return state.budgets.find(b => b.month === month && b.category === category) || null;
+}
+
+async function saveBudget(month, category, amount) {
+  const existing = getBudget(month, category);
+  if (amount <= 0 && !existing) return; // nothing to save
+  if (existing) {
+    if (amount <= 0) {
+      // clear it out by writing 0 rather than deleting (keeps row indices stable)
+      existing.amount = 0;
+    } else {
+      existing.amount = amount;
+    }
+    await sheetsFetch("/values/" + encodeURIComponent(BUDGETS_TAB + "!A" + existing.sheetRow + ":C" + existing.sheetRow) + "?valueInputOption=USER_ENTERED", {
+      method: "PUT",
+      body: JSON.stringify({ values: [[month, category, existing.amount]] }),
+    });
+  } else {
+    await sheetsFetch("/values/" + encodeURIComponent(BUDGETS_TAB + "!A:C") + ":append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS", {
+      method: "POST",
+      body: JSON.stringify({ values: [[month, category, amount]] }),
+    });
+    state.budgets.push({ sheetRow: -1, month, category, amount }); // sheetRow refreshed on next loadBudgets
   }
 }
 
@@ -801,10 +866,12 @@ function render() {
   document.getElementById("page-add").style.display = state.page === "add" ? "block" : "none";
   document.getElementById("page-summary").style.display = state.page === "summary" ? "block" : "none";
   document.getElementById("page-compare").style.display = state.page === "compare" ? "block" : "none";
+  document.getElementById("page-budget").style.display = state.page === "budget" ? "block" : "none";
 
   if (state.page === "add") renderAdd();
   if (state.page === "summary") renderSummary();
   if (state.page === "compare") renderCompare();
+  if (state.page === "budget") renderBudget();
 }
 
 function renderAdd() {
@@ -1152,6 +1219,121 @@ function renderCompare() {
   `;
   document.getElementById("compareASelect").addEventListener("change", (e) => { state.compareA = e.target.value; renderCompare(); });
   document.getElementById("compareBSelect").addEventListener("change", (e) => { state.compareB = e.target.value; renderCompare(); });
+}
+
+function budgetMonthOptions() {
+  const set = new Set();
+  const cur = new Date();
+  for (let i = -3; i <= 6; i++) {
+    const d = new Date(cur.getFullYear(), cur.getMonth() + i, 1);
+    set.add(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+  }
+  state.entries.forEach(e => set.add(monthKey(e.date)));
+  state.budgets.forEach(b => set.add(b.month));
+  return Array.from(set).sort().reverse();
+}
+
+function budgetComparisonHTML(month, stats, totalBudget, totalActual) {
+  return `
+    <div class="grand" style="margin-bottom:20px;">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">Total budget</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:var(--text-strong); margin-top:4px;">${fmt(totalBudget)}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="mono" style="font-size:10px; letter-spacing:0.1em; color:var(--text-secondary); text-transform:uppercase;">Actual spend</div>
+        <div class="mono" style="font-size:20px; font-weight:600; color:${totalBudget>0 && totalActual>totalBudget ? 'var(--negative)':'var(--text-strong)'}; margin-top:4px;">${fmt(totalActual)}</div>
+      </div>
+    </div>
+
+    <div class="section-head">Actual vs Budget by category</div>
+    <div class="card">
+      ${CATEGORIES.map(c => {
+        const budgetAmt = (getBudget(month, c.id) || {}).amount || 0;
+        const actualAmt = stats.catMap[c.id] || 0;
+        if (budgetAmt === 0 && actualAmt === 0) return "";
+        const pct = budgetAmt > 0 ? (actualAmt / budgetAmt * 100) : (actualAmt > 0 ? 100 : 0);
+        const over = budgetAmt > 0 && actualAmt > budgetAmt;
+        const barColor = budgetAmt === 0 ? "var(--text-faint)" : (over ? "var(--negative)" : "var(--positive)");
+        const remaining = budgetAmt - actualAmt;
+        return `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+            ${icon(c.icon,13)}
+            <div style="flex:1; font-size:13px; color:var(--text-strong);">${c.id}</div>
+            <div class="mono" style="font-size:12px; color:var(--text-secondary);">${fmt(actualAmt)}${budgetAmt>0 ? ' / '+fmt(budgetAmt) : ''}</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%; background:${barColor};"></div></div>
+          ${budgetAmt>0 ? `<div class="mono" style="font-size:11px; color:${over?'var(--negative)':'var(--positive)'}; margin-top:3px;">${over ? 'Over by '+fmt(Math.abs(remaining)) : fmt(remaining)+' left'}</div>` : ''}
+        </div>`;
+      }).join("")}
+      ${CATEGORIES.every(c => !((getBudget(month,c.id)||{}).amount) && !stats.catMap[c.id]) ? `<div class="empty">No budget or spend set for ${monthLabelOf(month)} yet.</div>` : ""}
+    </div>
+  `;
+}
+
+function refreshBudgetComparison() {
+  const month = state.budgetMonth;
+  const stats = computeStats(state.entries, month);
+  const totalBudget = CATEGORIES.reduce((sum, c) => sum + ((getBudget(month, c.id) || {}).amount || 0), 0);
+  const area = document.getElementById("budgetComparisonArea");
+  if (area) area.innerHTML = budgetComparisonHTML(month, stats, totalBudget, stats.grand);
+}
+
+function renderBudget() {
+  const el = document.getElementById("page-budget");
+  if (state.loading) { el.innerHTML = `<div class="empty">Loading…</div>`; return; }
+
+  const months = budgetMonthOptions();
+  if (!months.includes(state.budgetMonth)) state.budgetMonth = monthKey(todayStr());
+  const month = state.budgetMonth;
+  const stats = computeStats(state.entries, month);
+  const totalBudget = CATEGORIES.reduce((sum, c) => sum + ((getBudget(month, c.id) || {}).amount || 0), 0);
+
+  el.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <select class="pill ledger-font" id="budgetMonthSelect">
+        ${months.map(m => `<option value="${m}" ${m===month?'selected':''}>${monthLabelOf(m)}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="section-head">Set budget per category</div>
+      ${CATEGORIES.map(c => {
+        const b = getBudget(month, c.id);
+        const val = b && b.amount > 0 ? b.amount : "";
+        return `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="width:32px; height:32px; border-radius:8px; background:var(--input-bg); display:flex; align-items:center; justify-content:center; flex-shrink:0;">${icon(c.icon,14)}</div>
+          <div style="flex:1; font-size:13px; color:var(--text-strong);">${c.id}</div>
+          <input class="input mono budget-input" data-category="${c.id}" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${val}" style="width:110px;" />
+        </div>`;
+      }).join("")}
+      <div class="ok" id="budgetSaveOk" style="margin-top:4px;"></div>
+    </div>
+
+    <div id="budgetComparisonArea">${budgetComparisonHTML(month, stats, totalBudget, stats.grand)}</div>
+    <div class="foot-note">Budgets are saved to a separate "Budgets" tab in your Google Sheet, synced the same way as your expenses.</div>
+  `;
+  document.getElementById("budgetMonthSelect").addEventListener("change", (e) => { state.budgetMonth = e.target.value; renderBudget(); });
+  el.querySelectorAll(".budget-input").forEach(inp => {
+    inp.addEventListener("change", async () => {
+      const cat = inp.dataset.category;
+      const amt = parseFloat(inp.value) || 0;
+      const okEl = document.getElementById("budgetSaveOk");
+      okEl.textContent = "Saving…";
+      try {
+        await saveBudget(month, cat, amt);
+        okEl.textContent = "Saved ✓";
+        refreshBudgetComparison();
+        setTimeout(() => { if (okEl) okEl.textContent = ""; }, 2000);
+      } catch (e) {
+        console.error(e);
+        okEl.textContent = "";
+        alert("Couldn't save that budget. Check your connection and try again.");
+      }
+    });
+  });
 }
 
 /* ---------- Init ---------- */
