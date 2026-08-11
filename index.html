@@ -318,6 +318,7 @@ const ICONS = {
   check: '<polyline points="20 6 9 17 4 12"/>',
   swap: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
 };
 function icon(name, size) {
   size = size || 15;
@@ -353,6 +354,7 @@ let state = {
   rangeEnd: "",
   budgets: [],
   budgetMonth: monthKey(todayStr()),
+  editingRow: null,
 };
 
 /* ---------- Google auth + Sheets API ---------- */
@@ -597,6 +599,14 @@ async function deleteEntryRow(sheetRow) {
         }
       }]
     }),
+  });
+}
+
+async function updateEntryRow(sheetRow, entry) {
+  const row = [entry.date, entry.category, entry.note, methodInfo(entry.method).label, entry.amount.toFixed(2), entry.rowId];
+  await sheetsFetch("/values/" + encodeURIComponent(sheetRange("A" + sheetRow + ":F" + sheetRow)) + "?valueInputOption=USER_ENTERED", {
+    method: "PUT",
+    body: JSON.stringify({ values: [row] }),
   });
 }
 
@@ -858,6 +868,39 @@ async function handleDelete(sheetRow) {
   }
 }
 
+async function handleEditSave(sheetRow, form) {
+  const amt = parseFloat(form.querySelector(".edit-amount").value);
+  const date = form.querySelector(".edit-date").value;
+  const method = form.querySelector(".edit-method").value;
+  const category = form.querySelector(".edit-category").value;
+  const note = form.querySelector(".edit-note").value.trim();
+  const errEl = form.querySelector(".edit-error");
+  errEl.textContent = "";
+
+  if (!amt || amt <= 0) { errEl.textContent = "Enter an amount greater than zero."; return; }
+  if (!date) { errEl.textContent = "Pick a date."; return; }
+  if (!category) { errEl.textContent = "Pick a category."; return; }
+
+  const original = state.entries.find(e => e.sheetRow === sheetRow);
+  const saveBtn = form.querySelector(".edit-save-btn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Saving…";
+  try {
+    await updateEntryRow(sheetRow, {
+      date, category, method, note,
+      amount: amt,
+      rowId: original ? original.rowId : (Date.now() + "-" + Math.random().toString(36).slice(2,7)),
+    });
+    state.editingRow = null;
+    await loadEntries();
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = "Couldn't save changes. Check your connection and try again.";
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save";
+  }
+}
+
 /* ---------- Rendering ---------- */
 function render() {
   document.querySelectorAll(".tab-btn").forEach(b => {
@@ -1080,6 +1123,45 @@ function renderSummary() {
     <div class="entry-list">
       ${filteredList.length === 0 ? `<div class="empty">${hasFilter ? `No matching entries for ${periodLabel}.` : `No entries for ${periodLabel}.`}</div>` :
         filteredList.map(e => {
+          if (state.editingRow === e.sheetRow) {
+            return `
+            <div class="entry-row edit-row" data-edit-row="${e.sheetRow}" style="flex-direction:column; align-items:stretch; gap:8px; padding:14px 16px;">
+              <div class="row2" style="margin-bottom:0;">
+                <div>
+                  <label class="label">Amount</label>
+                  <input class="input mono edit-amount" type="number" step="0.01" value="${e.amount}" />
+                </div>
+                <div>
+                  <label class="label">Date</label>
+                  <input class="input mono edit-date" type="date" value="${e.date}" />
+                </div>
+              </div>
+              <div class="row2" style="margin-bottom:0;">
+                <div>
+                  <label class="label">Paid by</label>
+                  <select class="input edit-method">
+                    ${METHODS.map(m => `<option value="${m.id}" ${m.id===e.method?'selected':''}>${m.label}</option>`).join("")}
+                  </select>
+                </div>
+                <div>
+                  <label class="label">Paid for</label>
+                  <select class="input edit-category">
+                    ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category?'selected':''}>${c.id}</option>`).join("")}
+                    ${!CATEGORIES.some(c=>c.id===e.category) ? `<option value="${e.category}" selected>${e.category}</option>` : ""}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="label">Remarks</label>
+                <input class="input edit-note" type="text" value="${(e.note||"").replace(/"/g,'&quot;')}" />
+              </div>
+              <div class="err edit-error"></div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-primary edit-save-btn" style="width:auto; padding:9px 16px;">Save</button>
+                <button class="link-btn edit-cancel-btn">Cancel</button>
+              </div>
+            </div>`;
+          }
           const cInfo = categoryInfo(e.category);
           const mInfo = methodInfo(e.method);
           const label = e.note ? `${e.category} · ${e.note}` : e.category;
@@ -1091,6 +1173,7 @@ function renderSummary() {
                 <div class="entry-sub mono">${e.date} · ${mInfo.label}</div>
               </div>
               <div class="entry-amt mono">${fmt(e.amount)}</div>
+              <button class="del-btn edit-btn" data-edit="${e.sheetRow}">${icon("pencil",13)}</button>
               <button class="del-btn" data-row="${e.sheetRow}">${icon("trash",14)}</button>
             </div>`;
         }).join("")}
@@ -1112,6 +1195,12 @@ function renderSummary() {
     }));
   }
   el.querySelectorAll("[data-row]").forEach(b => b.addEventListener("click", () => handleDelete(parseInt(b.dataset.row))));
+  el.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => { state.editingRow = parseInt(b.dataset.edit); renderSummary(); }));
+  el.querySelectorAll(".edit-row").forEach(form => {
+    const sheetRow = parseInt(form.dataset.editRow);
+    form.querySelector(".edit-save-btn").addEventListener("click", () => handleEditSave(sheetRow, form));
+    form.querySelector(".edit-cancel-btn").addEventListener("click", () => { state.editingRow = null; renderSummary(); });
+  });
   el.querySelectorAll("[data-filter-method]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.filterMethod;
     fm.has(val) ? fm.delete(val) : fm.add(val);
